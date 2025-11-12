@@ -93,6 +93,28 @@ def api_config():
         return jsonify({'success': True})
 
 
+def run_async(coro):
+    """Запустить async код в отдельном потоке"""
+    result = {'value': None, 'error': None}
+
+    def run():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result['value'] = loop.run_until_complete(coro)
+            loop.close()
+        except Exception as e:
+            result['error'] = e
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    thread.join()
+
+    if result['error']:
+        raise result['error']
+    return result['value']
+
+
 @app.route('/api/connect', methods=['POST'])
 def api_connect():
     """Подключиться к Telegram"""
@@ -110,10 +132,8 @@ def api_connect():
             config['api_hash']
         )
 
-        # Проверяем авторизацию
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        connected = loop.run_until_complete(loader.connect())
+        # Проверяем авторизацию в отдельном потоке
+        connected = run_async(loader.connect())
 
         if connected:
             return jsonify({'success': True, 'authorized': True})
@@ -125,8 +145,8 @@ def api_connect():
             if not phone:
                 return jsonify({'success': True, 'authorized': False, 'need_phone': True})
 
-            # Отправляем код
-            loop.run_until_complete(loader.send_code_request(phone))
+            # Отправляем код в отдельном потоке
+            run_async(loader.send_code_request(phone))
 
             return jsonify({
                 'success': True,
@@ -154,10 +174,8 @@ def api_verify_code():
         if not phone or not code:
             return jsonify({'error': 'Укажите телефон и код'}), 400
 
-        # Авторизуемся
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(loader.sign_in(phone, code))
+        # Авторизуемся в отдельном потоке
+        run_async(loader.sign_in(phone, code))
 
         return jsonify({'success': True})
 
@@ -176,10 +194,8 @@ def api_dialogs():
     try:
         hours = request.args.get('hours', 24, type=int)
 
-        # Загружаем диалоги
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        dialogs, _ = loop.run_until_complete(load_messages_web(
+        # Загружаем диалоги в отдельном потоке
+        dialogs, _ = run_async(load_messages_web(
             loader.api_id,
             loader.api_hash,
             hours_back=hours
@@ -224,11 +240,9 @@ def api_process():
         message_ids = [msg['id'] for msg in dialog['unread_messages']]
         loader.mark_messages_as_processed(dialog_id, message_ids, action)
 
-        # Если mark_unread - помечаем в Telegram
+        # Если mark_unread - помечаем в Telegram (в отдельном потоке)
         if action == 'mark_unread':
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(loader.mark_dialog_as_unread(dialog_id))
+            run_async(loader.mark_dialog_as_unread(dialog_id))
 
         return jsonify({'success': True})
 
@@ -302,10 +316,8 @@ def auto_scan_worker():
 
         if loader:
             try:
-                # Сканируем каждый час
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                dialogs, _ = loop.run_until_complete(load_messages_web(
+                # Сканируем каждый час (в отдельном event loop)
+                dialogs, _ = run_async(load_messages_web(
                     loader.api_id,
                     loader.api_hash,
                     hours_back=24
