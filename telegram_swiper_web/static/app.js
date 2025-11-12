@@ -60,6 +60,18 @@ async function checkStatus() {
         if (data.connected) {
             showMainPanel();
             loadStats();
+        } else {
+            // Проверяем есть ли сохраненные API ключи
+            const configResponse = await fetch('/api/config');
+            const configData = await configResponse.json();
+
+            if (configData.api_id && configData.has_api_hash) {
+                // API ключи есть, но не авторизован - показываем панель авторизации
+                showAuthPanel();
+            } else {
+                // Нет API ключей - показываем панель настроек
+                // Она уже показана по умолчанию
+            }
         }
     } catch (error) {
         console.error('Status check error:', error);
@@ -189,11 +201,23 @@ async function verifyCode() {
 }
 
 /**
+ * Показать панель настроек
+ */
+function showSettingsPanel() {
+    document.getElementById('settings-panel').classList.remove('hidden');
+    document.getElementById('auth-panel').classList.add('hidden');
+    document.getElementById('main-panel').classList.add('hidden');
+    document.getElementById('stats-panel').classList.add('hidden');
+}
+
+/**
  * Показать панель авторизации
  */
 function showAuthPanel() {
     document.getElementById('settings-panel').classList.add('hidden');
     document.getElementById('auth-panel').classList.remove('hidden');
+    document.getElementById('main-panel').classList.add('hidden');
+    document.getElementById('stats-panel').classList.add('hidden');
 }
 
 /**
