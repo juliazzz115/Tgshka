@@ -43,6 +43,8 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Глобальное состояние
 loader = None
+loader_loop = None  # Event loop для loader
+loader_thread = None  # Поток для loader
 current_dialogs = []
 auto_scan_enabled = False
 auto_scan_thread = None
@@ -110,25 +112,39 @@ def api_config():
         return jsonify({'success': True})
 
 
-def run_async(coro):
-    """Запустить async код в отдельном потоке (совместимо с macOS)"""
-    from concurrent.futures import ThreadPoolExecutor
-    import asyncio
+def run_async_in_loader_thread(coro):
+    """Запустить async код в выделенном потоке loader (использует один event loop)"""
+    global loader_loop, loader_thread
 
-    def run_in_new_loop():
-        """Запустить в новом event loop"""
-        # Создаем новый event loop для этого потока
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
+    result = {'value': None, 'error': None, 'done': False}
+
+    def execute():
         try:
-            return new_loop.run_until_complete(coro)
+            result['value'] = asyncio.run_coroutine_threadsafe(coro, loader_loop).result()
+        except Exception as e:
+            result['error'] = e
         finally:
-            new_loop.close()
+            result['done'] = True
 
-    # Используем ThreadPoolExecutor для изоляции
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(run_in_new_loop)
-        return future.result()
+    # Если нет выделенного потока, создаем
+    if loader_loop is None or not loader_loop.is_running():
+        def run_event_loop():
+            global loader_loop
+            loader_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loader_loop)
+            loader_loop.run_forever()
+
+        loader_thread = threading.Thread(target=run_event_loop, daemon=True)
+        loader_thread.start()
+        time.sleep(0.1)  # Даем время на запуск loop
+
+    # Запускаем coroutine в существующем event loop
+    future = asyncio.run_coroutine_threadsafe(coro, loader_loop)
+
+    try:
+        return future.result(timeout=30)  # Таймаут 30 секунд
+    except Exception as e:
+        raise e
 
 
 @app.route('/api/connect', methods=['POST'])
@@ -148,8 +164,8 @@ def api_connect():
             config['api_hash']
         )
 
-        # Проверяем авторизацию в отдельном потоке
-        connected = run_async(loader.connect())
+        # Проверяем авторизацию в выделенном потоке loader
+        connected = run_async_in_loader_thread(loader.connect())
 
         if connected:
             return jsonify({'success': True, 'authorized': True})
@@ -161,8 +177,8 @@ def api_connect():
             if not phone:
                 return jsonify({'success': True, 'authorized': False, 'need_phone': True})
 
-            # Отправляем код в отдельном потоке
-            run_async(loader.send_code_request(phone))
+            # Отправляем код в том же потоке
+            run_async_in_loader_thread(loader.send_code_request(phone))
 
             return jsonify({
                 'success': True,
@@ -191,7 +207,7 @@ def api_verify_code():
             return jsonify({'error': 'Укажите телефон и код'}), 400
 
         # Авторизуемся в отдельном потоке
-        run_async(loader.sign_in(phone, code))
+        run_async_in_loader_thread(loader.sign_in(phone, code))
 
         return jsonify({'success': True})
 
@@ -211,7 +227,7 @@ def api_dialogs():
         hours = request.args.get('hours', 24, type=int)
 
         # Загружаем диалоги в отдельном потоке
-        dialogs, _ = run_async(load_messages_web(
+        dialogs, _ = run_async_in_loader_thread(load_messages_web(
             loader.api_id,
             loader.api_hash,
             hours_back=hours
@@ -258,7 +274,7 @@ def api_process():
 
         # Если mark_unread - помечаем в Telegram (в отдельном потоке)
         if action == 'mark_unread':
-            run_async(loader.mark_dialog_as_unread(dialog_id))
+            run_async_in_loader_thread(loader.mark_dialog_as_unread(dialog_id))
 
         return jsonify({'success': True})
 
@@ -333,7 +349,7 @@ def auto_scan_worker():
         if loader:
             try:
                 # Сканируем каждый час (в отдельном event loop)
-                dialogs, _ = run_async(load_messages_web(
+                dialogs, _ = run_async_in_loader_thread(load_messages_web(
                     loader.api_id,
                     loader.api_hash,
                     hours_back=24
