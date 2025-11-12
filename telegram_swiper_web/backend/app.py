@@ -95,15 +95,25 @@ def api_config():
 
 
 def run_async(coro):
-    """Запустить async код в отдельном потоке"""
+    """Запустить async код в отдельном потоке (совместимо с macOS)"""
+    import sys
     result = {'value': None, 'error': None}
 
     def run():
         try:
-            loop = asyncio.new_event_loop()
+            # На macOS используем SelectorEventLoop вместо дефолтного
+            if sys.platform == 'darwin':
+                import selectors
+                selector = selectors.SelectSelector()
+                loop = asyncio.SelectorEventLoop(selector)
+            else:
+                loop = asyncio.new_event_loop()
+
             asyncio.set_event_loop(loop)
-            result['value'] = loop.run_until_complete(coro)
-            loop.close()
+            try:
+                result['value'] = loop.run_until_complete(coro)
+            finally:
+                loop.close()
         except Exception as e:
             result['error'] = e
 
