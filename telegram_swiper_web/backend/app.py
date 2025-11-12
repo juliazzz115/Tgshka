@@ -11,7 +11,11 @@ import json
 import os
 import threading
 import time
+import nest_asyncio
 from telegram_loader_web import TelegramMessageLoaderWeb, load_messages_web
+
+# Разрешаем вложенные event loops для совместимости с eventlet
+nest_asyncio.apply()
 
 app = Flask(__name__,
             template_folder='../templates',
