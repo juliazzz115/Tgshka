@@ -339,13 +339,25 @@ def handle_disconnect():
 
 
 if __name__ == '__main__':
+    # Получаем порт из переменной окружения (для Railway/Render) или используем 5000
+    port = int(os.environ.get('PORT', 5000))
+
     print("=" * 60)
     print("🚀 Starting Telegram Swiper Web App v3...")
     print("=" * 60)
-    print(f"📱 Open: http://localhost:5000")
-    print(f"🌍 Network: http://<your-ip>:5000")
+    print(f"📱 Open: http://localhost:{port}")
+    print(f"🌍 Network: http://<your-ip>:{port}")
     print("=" * 60)
     print("🔧 Press Ctrl+C to stop")
     print("=" * 60)
 
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    # Для Railway/Render используем production настройки
+    is_production = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RENDER')
+
+    socketio.run(
+        app,
+        host='0.0.0.0',
+        port=port,
+        debug=not is_production,
+        allow_unsafe_werkzeug=True
+    )
