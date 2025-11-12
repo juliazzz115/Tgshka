@@ -1,0 +1,546 @@
+/**
+ * Telegram Swiper v3 - Web App Logic
+ * С поддержкой touch свайпов для мобильных
+ */
+
+// Global state
+let dialogs = [];
+let currentIndex = 0;
+let socket = null;
+
+// Touch/drag state
+let startX = 0;
+let startY = 0;
+let currentX = 0;
+let currentY = 0;
+let isDragging = false;
+
+/**
+ * Инициализация при загрузке страницы
+ */
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Telegram Swiper v3 started');
+
+    // Подключаем WebSocket
+    connectWebSocket();
+
+    // Проверяем статус
+    checkStatus();
+
+    // Загружаем конфигурацию
+    loadConfig();
+});
+
+/**
+ * WebSocket подключение
+ */
+function connectWebSocket() {
+    socket = io();
+
+    socket.on('connect', () => {
+        console.log('✅ WebSocket connected');
+    });
+
+    socket.on('dialogs_updated', (data) => {
+        console.log('📨 Dialogs updated:', data);
+        dialogs = data.dialogs;
+        currentIndex = 0;
+        updateDisplay();
+    });
+}
+
+/**
+ * Проверка статуса подключения
+ */
+async function checkStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        if (data.connected) {
+            showMainPanel();
+            loadStats();
+        }
+    } catch (error) {
+        console.error('Status check error:', error);
+    }
+}
+
+/**
+ * Загрузить конфигурацию
+ */
+async function loadConfig() {
+    try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+
+        if (data.api_id) {
+            document.getElementById('api-id').value = data.api_id;
+        }
+    } catch (error) {
+        console.error('Config load error:', error);
+    }
+}
+
+/**
+ * Сохранить конфигурацию и подключиться
+ */
+async function saveConfig() {
+    const apiId = document.getElementById('api-id').value.trim();
+    const apiHash = document.getElementById('api-hash').value.trim();
+
+    if (!apiId || !apiHash) {
+        alert('Заполните все поля!');
+        return;
+    }
+
+    try {
+        // Сохраняем конфигурацию
+        await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_id: apiId, api_hash: apiHash })
+        });
+
+        // Подключаемся
+        const response = await fetch('/api/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+
+        if (data.authorized) {
+            // Уже авторизован
+            showMainPanel();
+            loadStats();
+        } else {
+            // Нужна авторизация
+            showAuthPanel();
+        }
+
+    } catch (error) {
+        alert('Ошибка: ' + error.message);
+    }
+}
+
+/**
+ * Отправить код авторизации
+ */
+async function sendCode() {
+    const phone = document.getElementById('phone').value.trim();
+
+    if (!phone) {
+        alert('Введите номер телефона!');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone })
+        });
+
+        const data = await response.json();
+
+        if (data.code_sent) {
+            document.getElementById('code-input').classList.remove('hidden');
+            alert('Код отправлен! Проверьте Telegram.');
+        }
+
+    } catch (error) {
+        alert('Ошибка: ' + error.message);
+    }
+}
+
+/**
+ * Проверить код
+ */
+async function verifyCode() {
+    const phone = document.getElementById('phone').value.trim();
+    const code = document.getElementById('code').value.trim();
+
+    if (!phone || !code) {
+        alert('Заполните все поля!');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/verify_code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, code })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showMainPanel();
+            loadStats();
+        } else {
+            alert('Неверный код!');
+        }
+
+    } catch (error) {
+        alert('Ошибка: ' + error.message);
+    }
+}
+
+/**
+ * Показать панель авторизации
+ */
+function showAuthPanel() {
+    document.getElementById('settings-panel').classList.add('hidden');
+    document.getElementById('auth-panel').classList.remove('hidden');
+}
+
+/**
+ * Показать главную панель
+ */
+function showMainPanel() {
+    document.getElementById('settings-panel').classList.add('hidden');
+    document.getElementById('auth-panel').classList.add('hidden');
+    document.getElementById('main-panel').classList.remove('hidden');
+    document.getElementById('stats-panel').classList.remove('hidden');
+}
+
+/**
+ * Загрузить диалоги
+ */
+async function loadDialogs(hours = 24) {
+    try {
+        const response = await fetch(`/api/dialogs?hours=${hours}`);
+        const data = await response.json();
+
+        if (data.success) {
+            dialogs = data.dialogs;
+            currentIndex = 0;
+
+            updateCounter(data.total, data.total_unread);
+            updateDisplay();
+            loadStats();
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+
+    } catch (error) {
+        alert('Ошибка загрузки: ' + error.message);
+    }
+}
+
+/**
+ * Обновить счетчики
+ */
+function updateCounter(total, unread) {
+    document.getElementById('counter').textContent = `${currentIndex} / ${total}`;
+    document.getElementById('unread-count').textContent = `💬 Непрочитанных: ${unread}`;
+}
+
+/**
+ * Обновить отображение
+ */
+function updateDisplay() {
+    const container = document.getElementById('card-container');
+    container.innerHTML = '';
+
+    if (currentIndex >= dialogs.length) {
+        showCompletion();
+        return;
+    }
+
+    // Показываем текущую и следующую карточку (для плавности)
+    for (let i = 0; i < 2 && (currentIndex + i) < dialogs.length; i++) {
+        const dialog = dialogs[currentIndex + i];
+        const card = createCard(dialog, i);
+        container.appendChild(card);
+    }
+
+    // Обновляем счетчик
+    const totalUnread = dialogs.slice(currentIndex).reduce((sum, d) => sum + d.unread_count, 0);
+    updateCounter(dialogs.length, totalUnread);
+}
+
+/**
+ * Создать карточку диалога
+ */
+function createCard(dialog, zIndex) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.zIndex = 10 - zIndex;
+    card.dataset.dialogId = dialog.dialog_id;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.innerHTML = `
+        <div class="card-title">👤 ${dialog.dialog_name}</div>
+        <div class="card-date">📅 ${dialog.last_message_date}</div>
+        ${dialog.last_your_message_date ? `<div class="card-date">✉️ Вы писали: ${dialog.last_your_message_date}</div>` : ''}
+        <div class="card-unread">⚠️ ${dialog.unread_count} сообщений требуют ответа!</div>
+    `;
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    // Контекст диалога
+    if (dialog.context && dialog.context.length > 0) {
+        const contextSection = document.createElement('div');
+        contextSection.className = 'context-section';
+        contextSection.innerHTML = '<div class="section-title">💬 История диалога:</div>';
+
+        dialog.context.forEach(msg => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${msg.from_me ? 'from-me' : 'from-client'}`;
+            messageDiv.innerHTML = `
+                <div class="message-sender">${msg.from_me ? '→' : '←'} ${msg.sender} [${msg.date}]</div>
+                <div class="message-text">${msg.text}</div>
+            `;
+            contextSection.appendChild(messageDiv);
+        });
+
+        body.appendChild(contextSection);
+    }
+
+    // Непрочитанные сообщения
+    if (dialog.unread_messages && dialog.unread_messages.length > 0) {
+        const unreadSection = document.createElement('div');
+        unreadSection.className = 'unread-section';
+        unreadSection.innerHTML = '<div class="section-title">⚠️ Требуют ответа:</div>';
+
+        dialog.unread_messages.forEach((msg, i) => {
+            const unreadDiv = document.createElement('div');
+            unreadDiv.className = 'unread-message';
+            unreadDiv.innerHTML = `
+                <strong>${i + 1}. [${msg.time}]</strong><br>
+                ${msg.text}
+            `;
+            unreadSection.appendChild(unreadDiv);
+        });
+
+        body.appendChild(unreadSection);
+    }
+
+    card.appendChild(header);
+    card.appendChild(body);
+
+    // Только для первой карточки добавляем обработчики
+    if (zIndex === 0) {
+        addSwipeHandlers(card);
+    }
+
+    return card;
+}
+
+/**
+ * Добавить обработчики свайпов
+ */
+function addSwipeHandlers(card) {
+    // Touch events
+    card.addEventListener('touchstart', handleStart, false);
+    card.addEventListener('touchmove', handleMove, false);
+    card.addEventListener('touchend', handleEnd, false);
+
+    // Mouse events (для desktop)
+    card.addEventListener('mousedown', handleStart, false);
+    card.addEventListener('mousemove', handleMove, false);
+    card.addEventListener('mouseup', handleEnd, false);
+    card.addEventListener('mouseleave', handleEnd, false);
+}
+
+/**
+ * Начало свайпа
+ */
+function handleStart(e) {
+    if (e.type === 'touchstart') {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+    } else {
+        startX = e.clientX;
+        startY = e.clientY;
+    }
+
+    isDragging = true;
+    this.classList.add('dragging');
+}
+
+/**
+ * Движение свайпа
+ */
+function handleMove(e) {
+    if (!isDragging) return;
+
+    e.preventDefault();
+
+    if (e.type === 'touchmove') {
+        currentX = e.touches[0].clientX;
+        currentY = e.touches[0].clientY;
+    } else {
+        currentX = e.clientX;
+        currentY = e.clientY;
+    }
+
+    const deltaX = currentX - startX;
+    const deltaY = currentY - startY;
+    const rotation = deltaX * 0.1; // Небольшой поворот
+
+    this.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${rotation}deg)`;
+    this.style.transition = 'none';
+}
+
+/**
+ * Конец свайпа
+ */
+function handleEnd(e) {
+    if (!isDragging) return;
+
+    isDragging = false;
+    this.classList.remove('dragging');
+
+    const deltaX = currentX - startX;
+    const threshold = 100; // Минимальное расстояние для свайпа
+
+    if (Math.abs(deltaX) > threshold) {
+        if (deltaX > 0) {
+            // Свайп вправо
+            animateSwipe(this, 'right');
+            processSwipe('answered');
+        } else {
+            // Свайп влево
+            animateSwipe(this, 'left');
+            processSwipe('mark_unread');
+        }
+    } else {
+        // Вернуть карточку на место
+        this.style.transform = '';
+        this.style.transition = 'transform 0.3s';
+    }
+
+    startX = 0;
+    startY = 0;
+    currentX = 0;
+    currentY = 0;
+}
+
+/**
+ * Анимация свайпа
+ */
+function animateSwipe(card, direction) {
+    card.style.transition = 'transform 0.3s, opacity 0.3s';
+    card.classList.add(`swiped-${direction}`);
+
+    setTimeout(() => {
+        currentIndex++;
+        updateDisplay();
+    }, 300);
+}
+
+/**
+ * Свайп влево (кнопка)
+ */
+function swipeLeft() {
+    const card = document.querySelector('.card');
+    if (card) {
+        animateSwipe(card, 'left');
+        processSwipe('mark_unread');
+    }
+}
+
+/**
+ * Свайп вправо (кнопка)
+ */
+function swipeRight() {
+    const card = document.querySelector('.card');
+    if (card) {
+        animateSwipe(card, 'right');
+        processSwipe('answered');
+    }
+}
+
+/**
+ * Обработать свайп на сервере
+ */
+async function processSwipe(action) {
+    if (currentIndex >= dialogs.length) return;
+
+    const dialog = dialogs[currentIndex - 1]; // -1 потому что уже инкрементировали
+
+    try {
+        await fetch('/api/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dialog_id: dialog.dialog_id,
+                action: action
+            })
+        });
+
+        // Обновляем статистику
+        loadStats();
+
+    } catch (error) {
+        console.error('Process error:', error);
+    }
+}
+
+/**
+ * Показать экран завершения
+ */
+function showCompletion() {
+    const container = document.getElementById('card-container');
+    container.innerHTML = `
+        <div class="completion">
+            <h2>🎉 Все диалоги обработаны!</h2>
+            <p>Обработано ${dialogs.length} диалогов</p>
+            <p style="margin-top: 20px;">Нажмите "Загрузить сообщения" для обновления</p>
+        </div>
+    `;
+}
+
+/**
+ * Загрузить статистику
+ */
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('stat-answered').textContent = data.stats.total_answered;
+            document.getElementById('stat-marked').textContent = data.stats.total_marked;
+            document.getElementById('stat-dialogs').textContent = data.stats.unique_dialogs;
+            document.getElementById('stat-scans').textContent = data.stats.total_scans;
+        }
+
+    } catch (error) {
+        console.error('Stats error:', error);
+    }
+}
+
+/**
+ * Очистить историю
+ */
+async function clearHistory() {
+    if (!confirm('Вы уверены? Это удалит ВСЮ историю обработанных сообщений!')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/clear_history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('История очищена!');
+            loadStats();
+        }
+
+    } catch (error) {
+        alert('Ошибка: ' + error.message);
+    }
+}
