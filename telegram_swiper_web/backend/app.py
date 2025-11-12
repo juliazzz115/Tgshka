@@ -9,6 +9,7 @@ from flask_cors import CORS
 import asyncio
 import json
 import os
+import sys
 import threading
 import time
 import nest_asyncio
@@ -16,6 +17,14 @@ from telegram_loader_web import TelegramMessageLoaderWeb, load_messages_web
 
 # Разрешаем вложенные event loops для совместимости с eventlet
 nest_asyncio.apply()
+
+# На macOS принудительно используем select вместо kqueue (исправляет ошибку в многопоточности)
+if sys.platform == 'darwin':
+    import selectors
+    # Сохраняем оригинальный DefaultSelector
+    _original_selector = selectors.DefaultSelector
+    # Заменяем на SelectSelector который работает в потоках
+    selectors.DefaultSelector = selectors.SelectSelector
 
 app = Flask(__name__,
             template_folder='../templates',
@@ -96,34 +105,23 @@ def api_config():
 
 def run_async(coro):
     """Запустить async код в отдельном потоке (совместимо с macOS)"""
-    import sys
-    result = {'value': None, 'error': None}
+    from concurrent.futures import ThreadPoolExecutor
+    import asyncio
 
-    def run():
+    def run_in_new_loop():
+        """Запустить в новом event loop"""
+        # Создаем новый event loop для этого потока
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
         try:
-            # На macOS используем SelectorEventLoop вместо дефолтного
-            if sys.platform == 'darwin':
-                import selectors
-                selector = selectors.SelectSelector()
-                loop = asyncio.SelectorEventLoop(selector)
-            else:
-                loop = asyncio.new_event_loop()
+            return new_loop.run_until_complete(coro)
+        finally:
+            new_loop.close()
 
-            asyncio.set_event_loop(loop)
-            try:
-                result['value'] = loop.run_until_complete(coro)
-            finally:
-                loop.close()
-        except Exception as e:
-            result['error'] = e
-
-    thread = threading.Thread(target=run)
-    thread.start()
-    thread.join()
-
-    if result['error']:
-        raise result['error']
-    return result['value']
+    # Используем ThreadPoolExecutor для изоляции
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(run_in_new_loop)
+        return future.result()
 
 
 @app.route('/api/connect', methods=['POST'])
