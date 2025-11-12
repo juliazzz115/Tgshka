@@ -21,10 +21,17 @@ nest_asyncio.apply()
 # На macOS принудительно используем select вместо kqueue (исправляет ошибку в многопоточности)
 if sys.platform == 'darwin':
     import selectors
-    # Сохраняем оригинальный DefaultSelector
-    _original_selector = selectors.DefaultSelector
-    # Заменяем на SelectSelector который работает в потоках
-    selectors.DefaultSelector = selectors.SelectSelector
+
+    # Monkey-patch asyncio для использования SelectSelector на macOS
+    _original_new_event_loop = asyncio.new_event_loop
+
+    def patched_new_event_loop():
+        """Создаем event loop с SelectSelector вместо KqueueSelector"""
+        selector = selectors.SelectSelector()
+        loop = asyncio.SelectorEventLoop(selector)
+        return loop
+
+    asyncio.new_event_loop = patched_new_event_loop
 
 app = Flask(__name__,
             template_folder='../templates',
