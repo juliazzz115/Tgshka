@@ -60,6 +60,28 @@ function showVisualNotification(message) {
 }
 
 /**
+ * Показать полноэкранный loader
+ */
+function showLoader(text = 'Загрузка...', tip = '') {
+    const overlay = document.getElementById('loading-overlay');
+    const textEl = document.getElementById('loading-text');
+    const tipEl = document.getElementById('loading-tip');
+
+    if (textEl) textEl.textContent = text;
+    if (tipEl) tipEl.textContent = tip;
+
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+/**
+ * Скрыть полноэкранный loader
+ */
+function hideLoader() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+/**
  * Инициализация при загрузке страницы
  */
 window.addEventListener('DOMContentLoaded', () => {
@@ -469,7 +491,10 @@ async function loadDialogs(hours = 24) {
     // Запрашиваем разрешение на уведомления при первой загрузке
     requestNotificationPermission();
 
-    // Индикатор загрузки
+    // Полноэкранный loader
+    showLoader('Загрузка диалогов...', 'Обрабатываем последние 30 диалогов за сегодня');
+
+    // Индикатор загрузки на кнопке
     const loadBtn = document.querySelector('button[onclick="loadDialogs()"]');
     if (loadBtn) {
         loadBtn.disabled = true;
@@ -507,6 +532,9 @@ async function loadDialogs(hours = 24) {
     } catch (error) {
         alert('Ошибка загрузки: ' + error.message);
     } finally {
+        // Скрываем loader
+        hideLoader();
+
         // Восстанавливаем кнопку
         if (loadBtn) {
             loadBtn.disabled = false;
@@ -521,7 +549,10 @@ async function loadDialogs(hours = 24) {
 async function loadMessages() {
     console.log('loadMessages() called');
 
-    // Индикатор загрузки
+    // Полноэкранный loader
+    showLoader('Обновление...', 'Проверяем новые сообщения за сегодня');
+
+    // Индикатор загрузки на кнопке
     const updateBtn = event.target;
     const originalText = updateBtn.textContent;
     updateBtn.disabled = true;
@@ -557,6 +588,7 @@ async function loadMessages() {
     } catch (error) {
         alert('Ошибка обновления: ' + error.message);
     } finally {
+        hideLoader();
         updateBtn.disabled = false;
         updateBtn.textContent = originalText;
     }

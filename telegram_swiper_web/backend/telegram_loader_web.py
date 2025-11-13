@@ -385,8 +385,8 @@ class TelegramMessageLoaderWeb:
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
-        # Получаем диалоги (лимит 100, но с уменьшенным количеством сообщений на диалог)
-        async for dialog in self.client.iter_dialogs(limit=100):
+        # Получаем диалоги (лимит 30 для быстрой загрузки)
+        async for dialog in self.client.iter_dialogs(limit=30):
             dialogs_scanned += 1
             if dialogs_scanned % 10 == 0:
                 print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
@@ -398,9 +398,9 @@ class TelegramMessageLoaderWeb:
 
             print(f"[load_dialogs] Processing user dialog: {dialog.name}")
 
-            # Шаг 1: Собираем все сообщения из диалога (limit=30 для ускорения)
+            # Шаг 1: Собираем все сообщения из диалога (limit=15 для быстрой загрузки)
             all_messages = []
-            async for message in self.client.iter_messages(dialog, limit=30):
+            async for message in self.client.iter_messages(dialog, limit=15):
                 if message.date < time_limit:
                     break
                 if message.text:  # Пропускаем служебные
