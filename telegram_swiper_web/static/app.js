@@ -370,8 +370,20 @@ function createCard(dialog, zIndex) {
     // Header
     const header = document.createElement('div');
     header.className = 'card-header';
+
+    // Создаем ссылку на Telegram
+    let telegramLink = '';
+    if (dialog.username) {
+        // Если есть username - используем https://t.me/username
+        telegramLink = `<a href="https://t.me/${dialog.username}" target="_blank" class="telegram-link">📱 Открыть в Telegram</a>`;
+    } else {
+        // Если нет username - используем tg://user?id=
+        telegramLink = `<a href="tg://user?id=${dialog.dialog_id}" class="telegram-link">📱 Открыть в Telegram</a>`;
+    }
+
     header.innerHTML = `
         <div class="card-title">👤 ${dialog.dialog_name}</div>
+        ${telegramLink}
         <div class="card-date">📅 ${dialog.last_message_date}</div>
         ${dialog.last_your_message_date ? `<div class="card-date">✉️ Вы писали: ${dialog.last_your_message_date}</div>` : ''}
         <div class="card-info">💬 Новых сообщений: ${dialog.unread_count}</div>

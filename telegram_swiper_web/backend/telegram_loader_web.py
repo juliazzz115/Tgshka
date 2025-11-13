@@ -333,12 +333,12 @@ class TelegramMessageLoaderWeb:
         if not is_auth:
             raise Exception("Не подключен к Telegram")
 
-        # Вычисляем время начала проверки: вчера в 17:00 по польскому времени (16:00 UTC, так как Польша UTC+1)
+        # Вычисляем время начала проверки: вчера в 17:00 по польскому времени (15:00 UTC, так как Польша UTC+2 летнее время)
         now = datetime.now(timezone.utc)
         yesterday = now.date() - timedelta(days=1)
-        time_limit = datetime.combine(yesterday, datetime.min.time().replace(hour=16), tzinfo=timezone.utc)
+        time_limit = datetime.combine(yesterday, datetime.min.time().replace(hour=15), tzinfo=timezone.utc)
 
-        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} (16:00 UTC = 17:00 Poland time) to {now}\n")
+        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} (15:00 UTC = 17:00 Poland time) to {now}\n")
         sys.stderr.flush()
 
         dialogs_data = []
@@ -439,9 +439,15 @@ class TelegramMessageLoaderWeb:
                         last_your_message = msg['date']
                         break
 
+                # Получаем username пользователя для ссылки в Telegram
+                username = None
+                if isinstance(dialog.entity, User) and hasattr(dialog.entity, 'username'):
+                    username = dialog.entity.username
+
                 dialogs_data.append({
                     'dialog_id': dialog.id,
                     'dialog_name': self._get_dialog_name(dialog),
+                    'username': username,  # Добавляем username для ссылки
                     'unread_count': len(pending_messages),
                     'unread_messages': pending_messages,
                     'context': list(reversed(messages)),  # От старых к новым
