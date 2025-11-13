@@ -6,9 +6,13 @@ Telegram Message Loader для веб-версии
 import asyncio
 import sqlite3
 import time
+import threading
 from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient
 from telethon.tl.types import User, Chat, Channel
+
+# Глобальная блокировка для доступа к БД
+_db_lock = threading.RLock()
 
 
 class TelegramMessageLoaderWeb:
@@ -69,15 +73,16 @@ class TelegramMessageLoaderWeb:
         return conn
 
     def _execute_with_retry(self, func, max_retries=3):
-        """Выполнить функцию работы с БД с повторными попытками"""
-        for attempt in range(max_retries):
-            try:
-                return func()
-            except sqlite3.OperationalError as e:
-                if 'locked' in str(e).lower() and attempt < max_retries - 1:
-                    time.sleep(0.1 * (2 ** attempt))  # Exponential backoff
-                    continue
-                raise
+        """Выполнить функцию работы с БД с повторными попытками и блокировкой"""
+        with _db_lock:  # Гарантирует что только один поток работает с БД
+            for attempt in range(max_retries):
+                try:
+                    return func()
+                except sqlite3.OperationalError as e:
+                    if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                        time.sleep(0.1 * (2 ** attempt))  # Exponential backoff
+                        continue
+                    raise
 
     async def connect(self):
         """Подключение к Telegram"""
