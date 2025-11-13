@@ -469,6 +469,13 @@ async function loadDialogs(hours = 24) {
     // Запрашиваем разрешение на уведомления при первой загрузке
     requestNotificationPermission();
 
+    // Индикатор загрузки
+    const loadBtn = document.querySelector('button[onclick="loadDialogs()"]');
+    if (loadBtn) {
+        loadBtn.disabled = true;
+        loadBtn.textContent = 'Загрузка...';
+    }
+
     try {
         const response = await fetch(`/api/dialogs?hours=${hours}`);
         const data = await response.json();
@@ -486,9 +493,12 @@ async function loadDialogs(hours = 24) {
             }
             loadStats(); // Загружаем дополнительную статистику из /api/stats
 
-            // Показываем визуальное уведомление если есть новые диалоги
+            // Показываем уведомление о результате
             if (data.dialogs && data.dialogs.length > 0) {
-                showVisualNotification(`Найдено ${data.dialogs.length} диалогов`);
+                showVisualNotification(`✓ Найдено ${data.dialogs.length} диалогов`);
+            } else {
+                showVisualNotification('✓ Нет новых диалогов для обработки');
+                alert('Нет новых диалогов!\n\nВсе диалоги обработаны или нет сообщений за сегодня.');
             }
         } else {
             alert('Ошибка: ' + data.error);
@@ -496,6 +506,59 @@ async function loadDialogs(hours = 24) {
 
     } catch (error) {
         alert('Ошибка загрузки: ' + error.message);
+    } finally {
+        // Восстанавливаем кнопку
+        if (loadBtn) {
+            loadBtn.disabled = false;
+            loadBtn.textContent = 'Загрузить сообщения';
+        }
+    }
+}
+
+/**
+ * Обновить диалоги (для кнопки "Обновить")
+ */
+async function loadMessages() {
+    console.log('loadMessages() called');
+
+    // Индикатор загрузки
+    const updateBtn = event.target;
+    const originalText = updateBtn.textContent;
+    updateBtn.disabled = true;
+    updateBtn.textContent = 'Обновляем...';
+
+    try {
+        const response = await fetch('/api/dialogs?hours=24');
+        const data = await response.json();
+
+        if (data.success) {
+            dialogs = data.dialogs;
+            currentIndex = 0;
+
+            updateCounter(data.total, data.total_unread);
+            updateDisplay();
+
+            // Обновляем статистику
+            if (data.stats) {
+                updateStatsDisplay(data.stats);
+            }
+            loadStats();
+
+            // Уведомление о результате
+            if (data.dialogs && data.dialogs.length > 0) {
+                showVisualNotification(`✓ Обновлено: ${data.dialogs.length} диалогов`);
+            } else {
+                showVisualNotification('✓ Нет новых диалогов');
+                alert('Нет новых диалогов!\n\nВсе диалоги обработаны или нет сообщений за сегодня.');
+            }
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+    } catch (error) {
+        alert('Ошибка обновления: ' + error.message);
+    } finally {
+        updateBtn.disabled = false;
+        updateBtn.textContent = originalText;
     }
 }
 
@@ -807,13 +870,26 @@ async function processSwipe(action) {
  */
 function showCompletion() {
     const container = document.getElementById('card-container');
-    container.innerHTML = `
-        <div class="completion">
-            <h2>🎉 Все диалоги обработаны!</h2>
-            <p>Обработано ${dialogs.length} диалогов</p>
-            <p style="margin-top: 20px;">Нажмите "Загрузить сообщения" для обновления</p>
-        </div>
-    `;
+
+    if (dialogs.length === 0) {
+        // Нет диалогов вообще
+        container.innerHTML = `
+            <div class="completion">
+                <h2>✓ Нет новых диалогов</h2>
+                <p style="margin-top: 15px; color: #666;">Все диалоги обработаны или нет сообщений за сегодня</p>
+                <p style="margin-top: 20px; color: #888;">Нажмите "Обновить" в статистике для повторной проверки</p>
+            </div>
+        `;
+    } else {
+        // Все диалоги обработаны
+        container.innerHTML = `
+            <div class="completion">
+                <h2>🎉 Отличная работа!</h2>
+                <p>Обработано ${dialogs.length} диалогов</p>
+                <p style="margin-top: 20px; color: #888;">Нажмите "Обновить" для проверки новых сообщений</p>
+            </div>
+        `;
+    }
 }
 
 /**
@@ -865,9 +941,15 @@ async function logout() {
  * Очистить историю
  */
 async function clearHistory() {
-    if (!confirm('Вы уверены? Это удалит ВСЮ историю обработанных сообщений!')) {
+    if (!confirm('Вы уверены? Это удалит ВСЮ историю обработанных сообщений!\n\nВсе диалоги снова появятся при следующем обновлении.')) {
         return;
     }
+
+    // Индикатор загрузки
+    const clearBtn = event.target;
+    const originalText = clearBtn.textContent;
+    clearBtn.disabled = true;
+    clearBtn.textContent = 'Очищаем...';
 
     try {
         const response = await fetch('/api/clear_history', {
@@ -878,11 +960,22 @@ async function clearHistory() {
         const data = await response.json();
 
         if (data.success) {
-            alert('История очищена!');
+            showVisualNotification('✓ История очищена');
+            alert('✓ История успешно очищена!\n\nТеперь нажмите "Обновить" чтобы загрузить все диалоги заново.');
             loadStats();
+
+            // Очищаем текущие диалоги
+            dialogs = [];
+            currentIndex = 0;
+            updateDisplay();
+        } else {
+            alert('Ошибка: ' + data.error);
         }
 
     } catch (error) {
         alert('Ошибка: ' + error.message);
+    } finally {
+        clearBtn.disabled = false;
+        clearBtn.textContent = originalText;
     }
 }
