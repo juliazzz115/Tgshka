@@ -1,8 +1,12 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip"]
+nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv"]
 
 [phases.install]
-cmds = ["pip install -r telegram_swiper_web/requirements.txt"]
+cmds = [
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate && pip install --upgrade pip",
+  ". /opt/venv/bin/activate && pip install -r telegram_swiper_web/requirements.txt"
+]
 
 [start]
-cmd = "cd telegram_swiper_web/backend && gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app"
+cmd = ". /opt/venv/bin/activate && cd telegram_swiper_web/backend && gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app"
