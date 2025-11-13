@@ -10,6 +10,7 @@ import threading
 import queue
 from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.tl.types import User, Chat, Channel
 
 # Глобальная очередь для операций с БД
@@ -104,6 +105,14 @@ class TelegramMessageLoaderWeb:
         def _init(conn):
             cursor = conn.cursor()
 
+            # Таблица для хранения сессии Telegram (вместо SQLite файла)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS telegram_session (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    session_string TEXT
+                )
+            ''')
+
             # Таблица для отслеживания обработанных сообщений
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS processed_messages (
@@ -140,13 +149,52 @@ class TelegramMessageLoaderWeb:
 
         _execute_in_queue(_init)
 
+    def _load_session_string(self):
+        """Загрузить строку сессии из БД"""
+        def _load(conn):
+            cursor = conn.cursor()
+            cursor.execute('SELECT session_string FROM telegram_session WHERE id = 1')
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+        return _execute_in_queue(_load)
+
+    def _save_session_string(self, session_string):
+        """Сохранить строку сессии в БД"""
+        def _save(conn):
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO telegram_session (id, session_string)
+                VALUES (1, ?)
+            ''', (session_string,))
+            conn.commit()
+            print(f"[Session] Saved session string to DB")
+            return None
+
+        _execute_in_queue(_save)
+
     async def connect(self):
-        """Подключение к Telegram"""
-        self.client = TelegramClient(self.session_name, self.api_id, self.api_hash)
+        """Подключение к Telegram с использованием StringSession"""
+        # Загружаем сохраненную сессию
+        session_string = self._load_session_string()
+
+        if session_string:
+            print("[Session] Loading existing session from DB")
+            session = StringSession(session_string)
+        else:
+            print("[Session] Creating new session")
+            session = StringSession()
+
+        self.client = TelegramClient(session, self.api_id, self.api_hash)
         await self.client.connect()
 
         if not await self.client.is_user_authorized():
             return False
+
+        # Сохраняем сессию после успешного подключения
+        session_string = self.client.session.save()
+        self._save_session_string(session_string)
+
         return True
 
     async def send_code_request(self, phone):
@@ -165,6 +213,11 @@ class TelegramMessageLoaderWeb:
         else:
             # Обычная авторизация
             await self.client.sign_in(phone, code)
+
+        # Сохраняем сессию после успешной авторизации
+        session_string = self.client.session.save()
+        self._save_session_string(session_string)
+        print("[Session] Session saved after successful sign-in")
 
     async def disconnect(self):
         """Отключение"""
