@@ -366,7 +366,9 @@ class TelegramMessageLoaderWeb:
 
             # Шаг 2: Получаем ID последнего обработанного сообщения в диалоге
             last_processed_id = self.get_last_processed_message_id(dialog.id)
-            print(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, last_processed_id={last_processed_id}")
+            # Получаем ID последнего прочитанного в Telegram входящего сообщения
+            read_inbox_max_id = dialog.read_inbox_max_id if dialog.read_inbox_max_id else 0
+            print(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, last_processed_id={last_processed_id}, read_inbox_max_id={read_inbox_max_id}")
 
             # Шаг 3: Фильтруем сообщения - показываем только новые (с id > last_processed_id)
             messages = []
@@ -375,9 +377,9 @@ class TelegramMessageLoaderWeb:
             for message in all_messages:
                 # Показываем только ПРОЧИТАННЫЕ в Telegram входящие сообщения, которые еще не обработаны в приложении
                 # not message.out - входящее сообщение (не от меня)
-                # not message.unread - прочитано в Telegram
+                # message.id <= read_inbox_max_id - прочитано в Telegram
                 # message.id > last_processed_id - еще не обработано в приложении
-                if not message.out and not message.unread and message.id > last_processed_id:
+                if not message.out and message.id <= read_inbox_max_id and message.id > last_processed_id:
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
