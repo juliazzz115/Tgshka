@@ -5,4 +5,4 @@ nixPkgs = ["python311", "python311Packages.pip"]
 cmds = ["pip install -r telegram_swiper_web/requirements.txt"]
 
 [start]
-cmd = "cd telegram_swiper_web/backend && python app.py"
+cmd = "cd telegram_swiper_web/backend && gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app"
