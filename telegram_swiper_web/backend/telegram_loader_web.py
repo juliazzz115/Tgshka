@@ -242,6 +242,23 @@ class TelegramMessageLoaderWeb:
             return result[0] == "answered"
         return False
 
+    def get_processed_messages_for_dialog(self, dialog_id, message_ids):
+        """Получить все обработанные сообщения для диалога (bulk запрос)"""
+        if not message_ids:
+            return set()
+
+        def _query(conn):
+            cursor = conn.cursor()
+            # Создаём placeholder для IN clause
+            placeholders = ','.join('?' * len(message_ids))
+            cursor.execute(f'''
+                SELECT message_id FROM processed_messages
+                WHERE dialog_id = ? AND message_id IN ({placeholders}) AND action = 'answered'
+            ''', (dialog_id, *message_ids))
+            return set(row[0] for row in cursor.fetchall())
+
+        return _execute_in_queue(_query)
+
     def mark_messages_as_processed(self, dialog_id, message_ids, action="answered"):
         """Пометить сообщения как обработанные"""
         def _write(conn):
@@ -295,20 +312,28 @@ class TelegramMessageLoaderWeb:
 
             print(f"[load_dialogs] Processing user dialog: {dialog.name}")
 
-            # Получаем последние сообщения
-            messages = []
-            unread_messages = []
-
+            # Шаг 1: Собираем все сообщения из диалога
+            all_messages = []
             async for message in self.client.iter_messages(dialog, limit=50):
                 if message.date < time_limit:
                     break
+                if message.text:  # Пропускаем служебные
+                    all_messages.append(message)
 
-                # Пропускаем служебные сообщения
-                if not message.text:
-                    continue
+            if not all_messages:
+                continue
 
-                # Проверяем, было ли обработано
-                is_processed = self.is_message_processed(dialog.id, message.id)
+            # Шаг 2: Получаем все обработанные message_id одним запросом
+            message_ids = [msg.id for msg in all_messages]
+            processed_ids = self.get_processed_messages_for_dialog(dialog.id, message_ids)
+            print(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, {len(processed_ids)} processed")
+
+            # Шаг 3: Фильтруем сообщения используя результаты bulk запроса
+            messages = []
+            unread_messages = []
+
+            for message in all_messages:
+                is_processed = message.id in processed_ids
 
                 # Если сообщение от клиента и не обработано
                 if not message.out and not is_processed:
