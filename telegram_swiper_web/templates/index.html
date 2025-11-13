@@ -457,6 +457,19 @@
         <!-- Auth Panel -->
         <div class="settings-panel hidden" id="auth-panel">
             <h2>Авторизация</h2>
+
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; color: #1565c0;">
+                💡 <strong>Совет:</strong> Если вы уже авторизовывались ранее, сначала попробуйте кнопку "Проверить сессию" ниже - это быстрее!
+            </div>
+
+            <button class="btn btn-success" style="width: 100%; margin-bottom: 15px;" onclick="tryExistingSession()">
+                ✓ Проверить существующую сессию
+            </button>
+
+            <div style="text-align: center; margin: 15px 0; color: #666;">
+                — или войдите заново —
+            </div>
+
             <div class="input-group">
                 <label>Номер телефона:</label>
                 <input type="tel" id="phone" placeholder="+79991234567">

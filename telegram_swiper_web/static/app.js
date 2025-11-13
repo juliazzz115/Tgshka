@@ -196,6 +196,55 @@ async function saveConfig() {
 }
 
 /**
+ * Попробовать использовать существующую сессию
+ */
+async function tryExistingSession() {
+    console.log('tryExistingSession() called');
+
+    // Блокируем кнопку во время запроса
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Проверяем...';
+
+    try {
+        console.log('Trying existing session');
+
+        const response = await fetch('/api/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})  // Без phone - проверяем только существующую сессию
+        });
+
+        console.log('Response status:', response.status);
+
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (data.authorized) {
+            // Успешно авторизовались через существующую сессию!
+            alert('✓ Успешно! Вы авторизованы через существующую сессию.');
+            showMainPanel();
+            loadStats();
+        } else if (data.need_phone) {
+            // Нет сохраненной сессии
+            alert('Сохраненная сессия не найдена.\n\nВведите номер телефона и запросите код.');
+            btn.disabled = false;
+            btn.textContent = '✓ Проверить существующую сессию';
+        } else {
+            alert('Не удалось авторизоваться. Попробуйте войти заново.');
+            btn.disabled = false;
+            btn.textContent = '✓ Проверить существующую сессию';
+        }
+
+    } catch (error) {
+        console.error('Exception in tryExistingSession:', error);
+        alert('Ошибка: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '✓ Проверить существующую сессию';
+    }
+}
+
+/**
  * Отправить код авторизации
  */
 async function sendCode() {
@@ -228,7 +277,28 @@ async function sendCode() {
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Response error:', errorText);
-            alert('Ошибка: ' + errorText);
+
+            // Парсим ошибку
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.error) {
+                    // Проверяем на ошибку ожидания
+                    const waitMatch = errorData.error.match(/wait of (\d+) seconds/);
+                    if (waitMatch) {
+                        const seconds = parseInt(waitMatch[1]);
+                        const hours = Math.floor(seconds / 3600);
+                        const minutes = Math.floor((seconds % 3600) / 60);
+                        alert(`⏰ Telegram ограничил запросы на отправку кода.\n\nНужно подождать: ${hours} ч ${minutes} мин\n\nПричина: слишком много запросов кода.\nПопробуйте позже или используйте существующую сессию.`);
+                    } else {
+                        alert('Ошибка: ' + errorData.error);
+                    }
+                } else {
+                    alert('Ошибка: ' + errorText);
+                }
+            } catch (e) {
+                alert('Ошибка сервера: ' + errorText);
+            }
+
             btn.disabled = false;
             btn.textContent = 'Отправить код';
             return;
@@ -242,8 +312,22 @@ async function sendCode() {
             alert('Код отправлен! Проверьте Telegram.');
             btn.disabled = false;
             btn.textContent = 'Отправить код';
+        } else if (data.authorized) {
+            // Уже авторизован!
+            alert('Вы уже авторизованы!');
+            showMainPanel();
+            loadStats();
         } else if (data.error) {
-            alert('Ошибка: ' + data.error);
+            // Проверяем на ошибку ожидания
+            const waitMatch = data.error.match(/wait of (\d+) seconds/);
+            if (waitMatch) {
+                const seconds = parseInt(waitMatch[1]);
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                alert(`⏰ Telegram ограничил запросы на отправку кода.\n\nНужно подождать: ${hours} ч ${minutes} мин\n\nПричина: слишком много запросов кода.\nПопробуйте позже или используйте существующую сессию.`);
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
             btn.disabled = false;
             btn.textContent = 'Отправить код';
         } else {
