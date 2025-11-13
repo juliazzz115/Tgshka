@@ -414,6 +414,23 @@ function createCard(dialog, zIndex) {
     card.appendChild(header);
     card.appendChild(body);
 
+    // Останавливаем propagation событий для ссылки на Telegram (чтобы не срабатывал свайп)
+    const telegramLinkElement = header.querySelector('.telegram-link');
+    if (telegramLinkElement) {
+        telegramLinkElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        telegramLinkElement.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+        });
+        telegramLinkElement.addEventListener('touchmove', (e) => {
+            e.stopPropagation();
+        });
+        telegramLinkElement.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+        });
+    }
+
     // Только для первой карточки добавляем обработчики
     if (zIndex === 0) {
         addSwipeHandlers(card);

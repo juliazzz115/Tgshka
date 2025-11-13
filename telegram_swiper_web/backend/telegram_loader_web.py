@@ -347,8 +347,8 @@ class TelegramMessageLoaderWeb:
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
-        # Получаем диалоги (лимит 50 для быстрой загрузки)
-        async for dialog in self.client.iter_dialogs(limit=50):
+        # Получаем диалоги (лимит 100, но с уменьшенным количеством сообщений на диалог)
+        async for dialog in self.client.iter_dialogs(limit=100):
             dialogs_scanned += 1
             if dialogs_scanned % 10 == 0:
                 print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
