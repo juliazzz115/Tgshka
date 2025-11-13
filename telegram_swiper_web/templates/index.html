@@ -431,18 +431,18 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>📱 Telegram Swiper</h1>
+            <h1>Telegram Swiper</h1>
         </div>
 
         <!-- Status Bar -->
         <div class="status-bar">
             <div class="counter" id="counter">0 / 0</div>
-            <div class="unread-count" id="unread-count">📊 Диалогов: 0</div>
+            <div class="unread-count" id="unread-count">Диалогов: 0</div>
         </div>
 
         <!-- Settings Panel -->
         <div class="settings-panel" id="settings-panel">
-            <h2>⚙️ Настройки Telegram</h2>
+            <h2>Настройки Telegram</h2>
             <div class="input-group">
                 <label>API ID:</label>
                 <input type="text" id="api-id" placeholder="Получите на my.telegram.org">
@@ -451,42 +451,42 @@
                 <label>API Hash:</label>
                 <input type="text" id="api-hash" placeholder="Ваш API Hash">
             </div>
-            <button class="btn btn-primary" onclick="saveConfig()">💾 Сохранить и подключиться</button>
+            <button class="btn btn-primary" onclick="saveConfig()">Сохранить и подключиться</button>
         </div>
 
         <!-- Auth Panel -->
         <div class="settings-panel hidden" id="auth-panel">
-            <h2>📱 Авторизация</h2>
+            <h2>Авторизация</h2>
             <div class="input-group">
                 <label>Номер телефона:</label>
                 <input type="tel" id="phone" placeholder="+79991234567">
             </div>
-            <button class="btn btn-primary" onclick="sendCode()">📲 Отправить код</button>
+            <button class="btn btn-primary" onclick="sendCode()">Отправить код</button>
 
             <div class="hidden" id="code-input">
                 <div class="input-group">
                     <label>Код из Telegram:</label>
                     <input type="text" id="code" placeholder="12345">
                 </div>
-                <button class="btn btn-success" onclick="verifyCode()">✅ Подтвердить</button>
+                <button class="btn btn-success" onclick="verifyCode()">Подтвердить</button>
             </div>
 
             <div class="hidden" id="password-input">
                 <div class="input-group">
-                    <label>🔐 Пароль двухфакторной аутентификации:</label>
+                    <label>Пароль двухфакторной аутентификации:</label>
                     <input type="password" id="password" placeholder="Ваш пароль 2FA">
                 </div>
-                <button class="btn btn-success" onclick="verifyCode()">✅ Подтвердить с паролем</button>
+                <button class="btn btn-success" onclick="verifyCode()">Подтвердить с паролем</button>
             </div>
 
             <button class="btn" style="background: #999; color: white; margin-top: 15px;" onclick="showSettingsPanel()">
-                ← Назад к настройкам
+                Назад к настройкам
             </button>
         </div>
 
         <!-- Main Panel -->
         <div class="hidden" id="main-panel">
-            <button class="btn btn-primary" onclick="loadDialogs()">🔄 Загрузить сообщения</button>
+            <button class="btn btn-primary" onclick="loadDialogs()">Загрузить сообщения</button>
 
             <!-- Card Container -->
             <div class="card-container" id="card-container">
@@ -496,12 +496,10 @@
             <!-- Swipe Buttons -->
             <div class="swipe-buttons">
                 <button class="swipe-btn swipe-btn-left" onclick="swipeLeft()">
-                    <span style="font-size: 24px;">👈</span>
                     <span>Непрочитанное</span>
                     <span style="font-size: 12px;">(вернется)</span>
                 </button>
                 <button class="swipe-btn swipe-btn-right" onclick="swipeRight()">
-                    <span style="font-size: 24px;">✅</span>
                     <span>Обработано</span>
                     <span style="font-size: 12px;">(убрать навсегда)</span>
                 </button>
@@ -509,7 +507,7 @@
 
             <!-- Stats -->
             <div class="stats-panel hidden" id="stats-panel">
-                <h3>📊 Статистика</h3>
+                <h3>Статистика</h3>
                 <div class="stats-grid">
                     <div class="stat-item">
                         <div class="stat-value" id="stat-total-dialogs">0</div>
@@ -526,13 +524,13 @@
                 </div>
                 <div style="margin-top: 15px; display: flex; gap: 10px;">
                     <button class="btn btn-primary" onclick="loadMessages()">
-                        🔄 Обновить
+                        Обновить
                     </button>
                     <button class="btn btn-danger" onclick="logout()">
-                        🚪 Выйти
+                        Выйти
                     </button>
                     <button class="btn btn-danger" onclick="clearHistory()">
-                        🗑️ Очистить историю
+                        Очистить историю
                     </button>
                 </div>
             </div>

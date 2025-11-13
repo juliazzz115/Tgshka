@@ -254,7 +254,7 @@ async function verifyCode() {
         } else if (data.need_password) {
             // Требуется пароль 2FA
             document.getElementById('password-input').classList.remove('hidden');
-            alert('⚠️ Требуется пароль двухфакторной аутентификации!\n\nВведите пароль, который вы установили в настройках безопасности Telegram.');
+            alert('Требуется пароль двухфакторной аутентификации!\n\nВведите пароль, который вы установили в настройках безопасности Telegram.');
         } else {
             alert('Ошибка: ' + (data.error || 'Неверный код!'));
         }
@@ -331,7 +331,7 @@ async function loadDialogs(hours = 24) {
  */
 function updateCounter(total, unread) {
     document.getElementById('counter').textContent = `${currentIndex} / ${total}`;
-    document.getElementById('unread-count').textContent = `📊 Диалогов: ${total}`;
+    document.getElementById('unread-count').textContent = `Диалогов: ${total}`;
 }
 
 /**
@@ -375,18 +375,18 @@ function createCard(dialog, zIndex) {
     let telegramLink = '';
     if (dialog.username) {
         // Если есть username - используем https://t.me/username
-        telegramLink = `<a href="https://t.me/${dialog.username}" target="_blank" class="telegram-link">📱 Открыть в Telegram</a>`;
+        telegramLink = `<a href="https://t.me/${dialog.username}" target="_blank" class="telegram-link">Открыть в Telegram</a>`;
     } else {
         // Если нет username - используем tg://user?id=
-        telegramLink = `<a href="tg://user?id=${dialog.dialog_id}" class="telegram-link">📱 Открыть в Telegram</a>`;
+        telegramLink = `<a href="tg://user?id=${dialog.dialog_id}" class="telegram-link">Открыть в Telegram</a>`;
     }
 
     header.innerHTML = `
-        <div class="card-title">👤 ${dialog.dialog_name}</div>
+        <div class="card-title">${dialog.dialog_name}</div>
         ${telegramLink}
-        <div class="card-date">📅 ${dialog.last_message_date}</div>
-        ${dialog.last_your_message_date ? `<div class="card-date">✉️ Вы писали: ${dialog.last_your_message_date}</div>` : ''}
-        <div class="card-info">💬 Новых сообщений: ${dialog.unread_count}</div>
+        <div class="card-date">${dialog.last_message_date}</div>
+        ${dialog.last_your_message_date ? `<div class="card-date">Вы писали: ${dialog.last_your_message_date}</div>` : ''}
+        <div class="card-info">Новых сообщений: ${dialog.unread_count}</div>
     `;
 
     // Body
