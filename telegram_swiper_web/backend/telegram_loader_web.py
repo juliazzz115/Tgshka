@@ -6,7 +6,7 @@ Telegram Message Loader для веб-версии
 import asyncio
 import sqlite3
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient
 from telethon.tl.types import User, Chat, Channel
 
@@ -159,7 +159,7 @@ class TelegramMessageLoaderWeb:
         if not self.client or not await self.client.is_user_authorized():
             raise Exception("Не подключен к Telegram")
 
-        time_limit = datetime.now() - timedelta(hours=hours_back)
+        time_limit = datetime.now(timezone.utc) - timedelta(hours=hours_back)
         dialogs_data = []
         dialogs_scanned = 0
         total_messages = 0
