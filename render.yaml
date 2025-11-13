@@ -4,7 +4,7 @@ services:
     env: python
     region: frankfurt
     buildCommand: pip install -r telegram_swiper_web/requirements.txt
-    startCommand: cd telegram_swiper_web/backend && gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app
+    startCommand: cd telegram_swiper_web/backend && gunicorn --worker-class=gthread --workers=1 --threads=4 --bind 0.0.0.0:$PORT app:app
     plan: free
     envVars:
       - key: PYTHON_VERSION
