@@ -270,7 +270,7 @@ async function loadDialogs(hours = 24) {
  */
 function updateCounter(total, unread) {
     document.getElementById('counter').textContent = `${currentIndex} / ${total}`;
-    document.getElementById('unread-count').textContent = `💬 Непрочитанных: ${unread}`;
+    document.getElementById('unread-count').textContent = `📊 Диалогов: ${total}`;
 }
 
 /**

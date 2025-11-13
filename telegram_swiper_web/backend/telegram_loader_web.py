@@ -242,8 +242,37 @@ class TelegramMessageLoaderWeb:
             return result[0] == "answered"
         return False
 
+    def get_last_processed_message_id(self, dialog_id):
+        """Получить ID последнего обработанного сообщения в диалоге"""
+        def _query(conn):
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT last_message_id FROM dialog_tracking
+                WHERE dialog_id = ?
+            ''', (dialog_id,))
+            result = cursor.fetchone()
+            return result[0] if result else 0
+
+        return _execute_in_queue(_query)
+
+    def set_last_processed_message_id(self, dialog_id, message_id, dialog_name):
+        """Сохранить ID последнего обработанного сообщения в диалоге"""
+        def _write(conn):
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO dialog_tracking
+                (dialog_id, dialog_name, last_message_id, last_check_time)
+                VALUES (?, ?, ?, ?)
+            ''', (dialog_id, dialog_name, message_id, datetime.now().isoformat()))
+            conn.commit()
+            return None
+
+        _execute_in_queue(_write)
+        print(f"[Dialog] Set last_processed_message_id for {dialog_name}: {message_id}")
+
     def get_processed_messages_for_dialog(self, dialog_id, message_ids):
-        """Получить все обработанные сообщения для диалога (bulk запрос)"""
+        """Получить все обработанные сообщения для диалога (bulk запрос) - DEPRECATED"""
+        # Теперь используем get_last_processed_message_id вместо этого
         if not message_ids:
             return set()
 
@@ -323,21 +352,19 @@ class TelegramMessageLoaderWeb:
             if not all_messages:
                 continue
 
-            # Шаг 2: Получаем все обработанные message_id одним запросом
-            message_ids = [msg.id for msg in all_messages]
-            processed_ids = self.get_processed_messages_for_dialog(dialog.id, message_ids)
-            print(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, {len(processed_ids)} processed")
+            # Шаг 2: Получаем ID последнего обработанного сообщения в диалоге
+            last_processed_id = self.get_last_processed_message_id(dialog.id)
+            print(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, last_processed_id={last_processed_id}")
 
-            # Шаг 3: Фильтруем сообщения используя результаты bulk запроса
+            # Шаг 3: Фильтруем сообщения - показываем только новые (с id > last_processed_id)
             messages = []
-            unread_messages = []
+            pending_messages = []  # Входящие сообщения, требующие обработки
 
             for message in all_messages:
-                is_processed = message.id in processed_ids
-
-                # Если сообщение от клиента и не обработано
-                if not message.out and not is_processed:
-                    unread_messages.append({
+                # Показываем входящие сообщения, которые новее последнего обработанного
+                # Это означает: если появилось новое сообщение после обработки - диалог снова появится
+                if not message.out and message.id > last_processed_id:
+                    pending_messages.append({
                         'id': message.id,
                         'text': message.text,
                         'date': message.date.strftime('%Y-%m-%d %H:%M:%S'),
@@ -354,9 +381,9 @@ class TelegramMessageLoaderWeb:
                         'sender': 'Вы' if message.out else self._get_dialog_name(dialog)
                     })
 
-            # Если есть непрочитанные, добавляем диалог
-            if unread_messages:
-                total_messages += len(unread_messages)
+            # Если есть необработанные сообщения, добавляем диалог
+            if pending_messages:
+                total_messages += len(pending_messages)
 
                 # Находим последнее сообщение от вас
                 last_your_message = None
@@ -368,8 +395,8 @@ class TelegramMessageLoaderWeb:
                 dialogs_data.append({
                     'dialog_id': dialog.id,
                     'dialog_name': self._get_dialog_name(dialog),
-                    'unread_count': len(unread_messages),
-                    'unread_messages': unread_messages,
+                    'unread_count': len(pending_messages),
+                    'unread_messages': pending_messages,
                     'context': list(reversed(messages)),  # От старых к новым
                     'last_message_date': messages[0]['date'] if messages else '',
                     'last_your_message_date': last_your_message
@@ -418,31 +445,38 @@ class TelegramMessageLoaderWeb:
         _execute_in_queue(_write)
 
     def get_statistics(self):
-        """Получить статистику"""
+        """Получить статистику по диалогам"""
         def _query(conn):
             cursor = conn.cursor()
 
-            # Всего обработанных
-            cursor.execute("SELECT COUNT(*) FROM processed_messages WHERE action = 'answered'")
-            total_answered = cursor.fetchone()[0]
+            # Всего отслеживаемых диалогов
+            cursor.execute("SELECT COUNT(*) FROM dialog_tracking")
+            total_dialogs = cursor.fetchone()[0]
 
-            # Помечено непрочитанными
-            cursor.execute("SELECT COUNT(*) FROM processed_messages WHERE action = 'mark_unread'")
-            total_marked = cursor.fetchone()[0]
-
-            # Уникальных диалогов
-            cursor.execute("SELECT COUNT(DISTINCT dialog_id) FROM processed_messages")
-            unique_dialogs = cursor.fetchone()[0]
+            # Обработанных диалогов (где last_message_id > 0)
+            cursor.execute("SELECT COUNT(*) FROM dialog_tracking WHERE last_message_id > 0")
+            processed_dialogs = cursor.fetchone()[0]
 
             # Всего сканирований
             cursor.execute("SELECT COUNT(*) FROM scan_history")
             total_scans = cursor.fetchone()[0]
 
+            # Последнее сканирование
+            cursor.execute('''
+                SELECT dialogs_scanned, messages_found
+                FROM scan_history
+                ORDER BY id DESC LIMIT 1
+            ''')
+            last_scan = cursor.fetchone()
+            last_dialogs_scanned = last_scan[0] if last_scan else 0
+            last_messages_found = last_scan[1] if last_scan else 0
+
             return {
-                'total_answered': total_answered,
-                'total_marked': total_marked,
-                'unique_dialogs': unique_dialogs,
-                'total_scans': total_scans
+                'total_dialogs': total_dialogs,
+                'processed_dialogs': processed_dialogs,
+                'total_scans': total_scans,
+                'last_dialogs_scanned': last_dialogs_scanned,
+                'last_messages_found': last_messages_found
             }
 
         return _execute_in_queue(_query)
