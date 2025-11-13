@@ -21,7 +21,7 @@ class TelegramMessageLoaderWeb:
 
     def init_database(self):
         """Инициализация базы данных"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         # Таблица для отслеживания обработанных сообщений
@@ -91,7 +91,7 @@ class TelegramMessageLoaderWeb:
 
     def is_message_processed(self, dialog_id, message_id):
         """Проверка, обработано ли сообщение"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -110,7 +110,7 @@ class TelegramMessageLoaderWeb:
 
     def mark_messages_as_processed(self, dialog_id, message_ids, action="answered"):
         """Пометить сообщения как обработанные"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         timestamp = datetime.now().isoformat()
@@ -227,7 +227,7 @@ class TelegramMessageLoaderWeb:
 
     def _save_scan_stats(self, dialogs_scanned, messages_found):
         """Сохранить статистику сканирования"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -240,7 +240,7 @@ class TelegramMessageLoaderWeb:
 
     def get_statistics(self):
         """Получить статистику"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         # Всего обработанных
@@ -270,7 +270,7 @@ class TelegramMessageLoaderWeb:
 
     def get_last_scan_time(self):
         """Получить время последнего сканирования"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -292,7 +292,7 @@ class TelegramMessageLoaderWeb:
 
     def clear_all_history(self):
         """Очистить всю историю"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute('DELETE FROM processed_messages')
