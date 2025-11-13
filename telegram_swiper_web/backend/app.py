@@ -281,23 +281,28 @@ def api_process():
             return jsonify({'error': 'Диалог не найден'}), 404
 
         if action == 'answered':
-            # При "Обработано" - сохраняем максимальный ID сообщения
-            # Диалог исчезнет, но появится снова если придут новые сообщения
+            # При "Обработано" - сохраняем максимальный ID сообщения со статусом 'processed'
+            # Диалог исчезнет, но появится снова если придут новые сообщения от клиента
             message_ids = [msg['id'] for msg in dialog['unread_messages']]
             if message_ids:
                 max_message_id = max(message_ids)
                 loader.set_last_processed_message_id(
                     dialog_id,
                     max_message_id,
-                    dialog['dialog_name']
+                    dialog['dialog_name'],
+                    status='processed'  # Диалог обработан
                 )
         elif action == 'mark_unread':
-            # При "Непрочитанное" - сбрасываем last_processed_message_id
-            # Диалог останется в списке
+            # При "Отложить" - помечаем статус 'pending'
+            # Диалог будет ВСЕГДА показываться при обновлении, пока не будет обработан
+            message_ids = [msg['id'] for msg in dialog['unread_messages']]
+            current_max_id = max(message_ids) if message_ids else 0
+
             loader.set_last_processed_message_id(
                 dialog_id,
-                0,  # Сбрасываем, чтобы диалог остался
-                dialog['dialog_name']
+                current_max_id,  # Сохраняем текущий max ID
+                dialog['dialog_name'],
+                status='pending'  # Диалог отложен - требует внимания
             )
             # Также помечаем в Telegram
             run_async_in_loader_thread(loader.mark_dialog_as_unread(dialog_id))

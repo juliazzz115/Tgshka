@@ -131,9 +131,17 @@ class TelegramMessageLoaderWeb:
                     dialog_id INTEGER PRIMARY KEY,
                     dialog_name TEXT,
                     last_message_id INTEGER,
-                    last_check_time TEXT
+                    last_check_time TEXT,
+                    status TEXT DEFAULT NULL
                 )
             ''')
+
+            # Миграция: добавляем колонку status если её нет
+            try:
+                cursor.execute("ALTER TABLE dialog_tracking ADD COLUMN status TEXT DEFAULT NULL")
+                print("[DB] Added 'status' column to dialog_tracking")
+            except:
+                pass  # Колонка уже существует
 
             # Таблица для статистики сканирований
             cursor.execute('''
@@ -267,20 +275,33 @@ class TelegramMessageLoaderWeb:
 
         return _execute_in_queue(_query)
 
-    def set_last_processed_message_id(self, dialog_id, message_id, dialog_name):
-        """Сохранить ID последнего обработанного сообщения в диалоге"""
+    def get_dialog_status(self, dialog_id):
+        """Получить статус диалога (NULL, 'pending', 'processed')"""
+        def _query(conn):
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT status FROM dialog_tracking
+                WHERE dialog_id = ?
+            ''', (dialog_id,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+        return _execute_in_queue(_query)
+
+    def set_last_processed_message_id(self, dialog_id, message_id, dialog_name, status='processed'):
+        """Сохранить ID последнего обработанного сообщения в диалоге и статус"""
         def _write(conn):
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT OR REPLACE INTO dialog_tracking
-                (dialog_id, dialog_name, last_message_id, last_check_time)
-                VALUES (?, ?, ?, ?)
-            ''', (dialog_id, dialog_name, message_id, datetime.now().isoformat()))
+                (dialog_id, dialog_name, last_message_id, last_check_time, status)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (dialog_id, dialog_name, message_id, datetime.now().isoformat(), status))
             conn.commit()
             return None
 
         _execute_in_queue(_write)
-        print(f"[Dialog] Set last_processed_message_id for {dialog_name}: {message_id}")
+        print(f"[Dialog] Set last_processed_message_id for {dialog_name}: {message_id}, status={status}")
 
     def get_processed_messages_for_dialog(self, dialog_id, message_ids):
         """Получить все обработанные сообщения для диалога (bulk запрос) - DEPRECATED"""
@@ -372,40 +393,28 @@ class TelegramMessageLoaderWeb:
                 print(f"[load_dialogs] Dialog {dialog.name}: no text messages, skipping")
                 continue
 
-            # Шаг 2: Получаем ID последнего обработанного сообщения в диалоге
+            # Шаг 2: Получаем статус и last_processed_id диалога
             last_processed_id = self.get_last_processed_message_id(dialog.id)
+            dialog_status = self.get_dialog_status(dialog.id)
 
-            # Получаем количество непрочитанных сообщений в диалоге
-            unread_count = dialog.unread_count if hasattr(dialog, 'unread_count') else 0
+            print(f"[load_dialogs] Dialog {dialog.name}: last_processed_id={last_processed_id}, status={dialog_status}")
 
-            # Определяем ID последнего прочитанного сообщения через unread_count
-            # Собираем только входящие сообщения для определения границы
-            incoming_messages = [msg for msg in all_messages if not msg.out]
-
-            # Если есть непрочитанные, то последние unread_count входящих сообщений - непрочитанные
-            # Остальные входящие - прочитанные
-            if unread_count > 0 and len(incoming_messages) > unread_count:
-                # Последнее прочитанное сообщение - это (количество входящих - количество непрочитанных)-ое сообщение
-                last_read_index = len(incoming_messages) - unread_count - 1
-                read_inbox_max_id = incoming_messages[last_read_index].id if last_read_index >= 0 else 0
-            elif unread_count == 0 and incoming_messages:
-                # Все входящие сообщения прочитаны - берем ID последнего
-                read_inbox_max_id = incoming_messages[0].id  # Первое в списке = последнее по времени
-            else:
-                # Все непрочитанные или нет входящих
-                read_inbox_max_id = 0
-
-            # Шаг 3: Фильтруем сообщения - показываем только новые (с id > last_processed_id)
+            # Шаг 3: Фильтруем сообщения
+            # ЛОГИКА:
+            # - Если статус 'pending' (отложен) - показываем ВСЕ входящие сообщения (диалог требует внимания)
+            # - Иначе показываем только новые входящие сообщения (id > last_processed_id)
             messages = []
             pending_messages = []  # Входящие сообщения, требующие обработки
 
             for message in all_messages:
-                # Показываем только ПРОЧИТАННЫЕ в Telegram входящие сообщения, которые еще не обработаны в приложении
-                # not message.out - входящее сообщение (не от меня)
-                # message.id <= read_inbox_max_id - прочитано в Telegram (используем наш вычисленный read_inbox_max_id)
-                # message.id > last_processed_id - еще не обработано в приложении
+                is_incoming = not message.out
+                is_new = message.id > last_processed_id
+                is_pending_dialog = (dialog_status == 'pending')
 
-                if not message.out and message.id <= read_inbox_max_id and message.id > last_processed_id:
+                # Показываем входящее сообщение если:
+                # 1. Диалог отложен ('pending') - показываем ВСЕ входящие
+                # 2. ИЛИ сообщение новое (id > last_processed_id) - показываем новые
+                if is_incoming and (is_pending_dialog or is_new):
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
