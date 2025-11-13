@@ -406,20 +406,31 @@ function createCard(dialog, zIndex) {
     if (zIndex === 0) {
         addSwipeHandlers(card);
 
-        // Автопрокрутка к последним сообщениям (для мобильных нужен больший таймаут)
-        setTimeout(() => {
+        // Автопрокрутка к последним сообщениям - более агрессивный подход для мобильных
+        const scrollToBottom = () => {
             const cardBody = card.querySelector('.card-body');
             if (cardBody) {
-                // Прокручиваем body карточки к концу
-                cardBody.scrollTop = cardBody.scrollHeight;
-
-                // Дополнительно прокручиваем context-section если есть
-                const contextSection = card.querySelector('.context-section');
-                if (contextSection) {
-                    contextSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                // Находим последнее сообщение в диалоге
+                const messages = cardBody.querySelectorAll('.message');
+                if (messages.length > 0) {
+                    const lastMessage = messages[messages.length - 1];
+                    // Прокручиваем последнее сообщение в видимую область (instant, не smooth)
+                    lastMessage.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
+                } else {
+                    // Если сообщений нет, просто прокручиваем к концу
+                    cardBody.scrollTop = cardBody.scrollHeight;
                 }
             }
-        }, 500); // Увеличили таймаут до 500мс для мобильных
+        };
+
+        // Первая попытка через requestAnimationFrame (ждем рендера DOM)
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                scrollToBottom();
+                // Повторная попытка через 800мс на случай медленного рендера на мобильных
+                setTimeout(scrollToBottom, 800);
+            });
+        });
     }
 
     return card;
