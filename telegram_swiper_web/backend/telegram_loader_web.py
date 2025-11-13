@@ -71,9 +71,18 @@ class TelegramMessageLoaderWeb:
         """Отправить запрос кода"""
         return await self.client.send_code_request(phone)
 
-    async def sign_in(self, phone, code):
-        """Авторизация"""
-        await self.client.sign_in(phone, code)
+    async def sign_in(self, phone, code, password=None):
+        """Авторизация с поддержкой 2FA"""
+        if password:
+            # Если есть пароль 2FA, сначала вводим код, потом пароль
+            try:
+                await self.client.sign_in(phone, code)
+            except:
+                # Если требуется 2FA, вводим пароль
+                await self.client.sign_in(password=password)
+        else:
+            # Обычная авторизация
+            await self.client.sign_in(phone, code)
 
     async def disconnect(self):
         """Отключение"""
