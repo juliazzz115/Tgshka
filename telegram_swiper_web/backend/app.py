@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 import nest_asyncio
-from telegram_loader_web import TelegramMessageLoaderWeb, load_messages_web
+from telegram_loader_web import TelegramMessageLoaderWeb
 
 # Разрешаем вложенные event loops для совместимости с eventlet
 nest_asyncio.apply()
@@ -239,12 +239,8 @@ def api_dialogs():
     try:
         hours = request.args.get('hours', 24, type=int)
 
-        # Загружаем диалоги в отдельном потоке
-        dialogs, _ = run_async_in_loader_thread(load_messages_web(
-            loader.api_id,
-            loader.api_hash,
-            hours_back=hours
-        ))
+        # Используем уже авторизованный loader
+        dialogs = run_async_in_loader_thread(loader.load_dialogs(hours))
 
         current_dialogs = dialogs
 
@@ -256,6 +252,9 @@ def api_dialogs():
         })
 
     except Exception as e:
+        print(f"[ERROR] /api/dialogs failed: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -361,12 +360,8 @@ def auto_scan_worker():
 
         if loader:
             try:
-                # Сканируем каждый час (в отдельном event loop)
-                dialogs, _ = run_async_in_loader_thread(load_messages_web(
-                    loader.api_id,
-                    loader.api_hash,
-                    hours_back=24
-                ))
+                # Используем уже авторизованный loader
+                dialogs = run_async_in_loader_thread(loader.load_dialogs(24))
 
                 current_dialogs = dialogs
 
