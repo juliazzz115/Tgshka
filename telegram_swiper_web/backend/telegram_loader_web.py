@@ -379,7 +379,15 @@ class TelegramMessageLoaderWeb:
                 # not message.out - входящее сообщение (не от меня)
                 # message.id <= read_inbox_max_id - прочитано в Telegram
                 # message.id > last_processed_id - еще не обработано в приложении
+
+                # Детальное логирование для отладки
+                if not message.out:
+                    is_read = message.id <= read_inbox_max_id
+                    is_new = message.id > last_processed_id
+                    print(f"  Message ID={message.id}: read={is_read} (id<={read_inbox_max_id}), new={is_new} (id>{last_processed_id}), text={message.text[:30] if message.text else 'None'}...")
+
                 if not message.out and message.id <= read_inbox_max_id and message.id > last_processed_id:
+                    print(f"  -> Adding to pending_messages")
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
