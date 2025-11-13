@@ -99,6 +99,11 @@ function connectWebSocket() {
         dialogs = data.dialogs;
         currentIndex = 0;
         updateDisplay();
+
+        // Обновляем статистику
+        if (data.stats) {
+            updateStatsDisplay(data.stats);
+        }
     });
 }
 
@@ -311,7 +316,12 @@ async function loadDialogs(hours = 24) {
 
             updateCounter(data.total, data.total_unread);
             updateDisplay();
-            loadStats();
+
+            // Обновляем статистику из ответа
+            if (data.stats) {
+                updateStatsDisplay(data.stats);
+            }
+            loadStats(); // Загружаем дополнительную статистику из /api/stats
 
             // Показываем визуальное уведомление если есть новые диалоги
             if (data.dialogs && data.dialogs.length > 0) {
@@ -332,6 +342,19 @@ async function loadDialogs(hours = 24) {
 function updateCounter(total, unread) {
     document.getElementById('counter').textContent = `${currentIndex} / ${total}`;
     document.getElementById('unread-count').textContent = `Диалогов: ${total}`;
+}
+
+/**
+ * Обновить статистику на экране
+ */
+function updateStatsDisplay(stats) {
+    if (stats) {
+        document.getElementById('stat-total-dialogs').textContent = stats.total_dialogs || 0;
+        document.getElementById('stat-read-dialogs').textContent = stats.read_dialogs || 0;
+        document.getElementById('stat-unread-dialogs').textContent = stats.unread_dialogs || 0;
+        document.getElementById('stat-processed-dialogs').textContent = stats.processed_dialogs || 0;
+        document.getElementById('stat-unprocessed-dialogs').textContent = stats.unprocessed_dialogs || 0;
+    }
 }
 
 /**
@@ -634,14 +657,15 @@ function showCompletion() {
  * Загрузить статистику
  */
 async function loadStats() {
+    // Эта функция теперь загружает только дополнительную статистику из /api/stats
+    // Основная статистика (total_dialogs, read_dialogs, etc) приходит с /api/dialogs
     try {
         const response = await fetch('/api/stats');
         const data = await response.json();
 
         if (data.success) {
-            document.getElementById('stat-total-dialogs').textContent = data.stats.total_dialogs;
-            document.getElementById('stat-processed-dialogs').textContent = data.stats.processed_dialogs;
-            document.getElementById('stat-scans').textContent = data.stats.total_scans;
+            // Здесь можно добавить отображение дополнительной статистики если нужно
+            console.log('Additional stats loaded:', data.stats);
         }
 
     } catch (error) {

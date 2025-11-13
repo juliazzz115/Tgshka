@@ -354,17 +354,34 @@ class TelegramMessageLoaderWeb:
         if not is_auth:
             raise Exception("Не подключен к Telegram")
 
-        # Вычисляем время начала проверки: вчера в 17:00 по польскому времени (16:00 UTC, так как Польша GMT+1 зимнее время)
+        # Вычисляем время начала проверки: сегодня 00:00 по польскому времени (GMT+1)
         now = datetime.now(timezone.utc)
-        yesterday = now.date() - timedelta(days=1)
-        time_limit = datetime.combine(yesterday, datetime.min.time().replace(hour=16), tzinfo=timezone.utc)
 
-        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} (16:00 UTC = 17:00 Poland time GMT+1) to {now}\n")
+        # Конвертируем в польское время (GMT+1)
+        now_poland = now + timedelta(hours=1)
+        today_poland = now_poland.date()
+
+        # Начало дня в польском времени (00:00)
+        midnight_poland = datetime.combine(today_poland, datetime.min.time())
+
+        # Конвертируем обратно в UTC
+        time_limit = midnight_poland.replace(tzinfo=timezone.utc) - timedelta(hours=1)
+
+        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} (00:00 Poland GMT+1) to {now}\n")
         sys.stderr.flush()
 
         dialogs_data = []
         dialogs_scanned = 0
         total_messages = 0
+
+        # Статистика
+        stats = {
+            'total_dialogs': 0,
+            'read_dialogs': 0,
+            'unread_dialogs': 0,
+            'processed_dialogs': 0,
+            'unprocessed_dialogs': 0
+        }
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
@@ -393,28 +410,57 @@ class TelegramMessageLoaderWeb:
                 print(f"[load_dialogs] Dialog {dialog.name}: no text messages, skipping")
                 continue
 
-            # Шаг 2: Получаем статус и last_processed_id диалога
+            # Шаг 2: Статистика по диалогу
+            stats['total_dialogs'] += 1
+
+            # Получаем количество непрочитанных в Telegram
+            unread_count = dialog.unread_count if hasattr(dialog, 'unread_count') else 0
+
+            # Собираем входящие сообщения для анализа
+            incoming_messages = [msg for msg in all_messages if not msg.out]
+
+            # Определяем прочитанные/непрочитанные сообщения в Telegram
+            # Если unread_count > 0 и есть входящие, то последние unread_count сообщений - непрочитанные
+            read_messages = []
+            unread_messages_telegram = []
+
+            if unread_count > 0 and len(incoming_messages) > unread_count:
+                # Разделяем на прочитанные и непрочитанные
+                read_messages = incoming_messages[unread_count:]  # Все кроме последних unread_count
+                unread_messages_telegram = incoming_messages[:unread_count]  # Последние unread_count
+                stats['read_dialogs'] += 1
+                stats['unread_dialogs'] += 1  # Есть и прочитанные и непрочитанные
+            elif unread_count == 0 and incoming_messages:
+                # Все прочитаны
+                read_messages = incoming_messages
+                stats['read_dialogs'] += 1
+            elif unread_count > 0:
+                # Все непрочитаны
+                unread_messages_telegram = incoming_messages
+                stats['unread_dialogs'] += 1
+
+            # Получаем статус и last_processed_id диалога из приложения
             last_processed_id = self.get_last_processed_message_id(dialog.id)
             dialog_status = self.get_dialog_status(dialog.id)
 
-            print(f"[load_dialogs] Dialog {dialog.name}: last_processed_id={last_processed_id}, status={dialog_status}")
+            print(f"[load_dialogs] Dialog {dialog.name}: last_processed_id={last_processed_id}, status={dialog_status}, unread_in_telegram={unread_count}, read_count={len(read_messages)}")
 
-            # Шаг 3: Фильтруем сообщения
-            # ЛОГИКА:
-            # - Если статус 'pending' (отложен) - показываем ВСЕ входящие сообщения (диалог требует внимания)
-            # - Иначе показываем только новые входящие сообщения (id > last_processed_id)
+            # Шаг 3: Фильтруем сообщения для показа
+            # НОВАЯ ЛОГИКА:
+            # - Если статус 'pending' (отложен) - показываем ВСЕ ПРОЧИТАННЫЕ сообщения (диалог требует внимания)
+            # - Иначе показываем только ПРОЧИТАННЫЕ В TELEGRAM + НЕОБРАБОТАННЫЕ В ПРИЛОЖЕНИИ сообщения
             messages = []
-            pending_messages = []  # Входящие сообщения, требующие обработки
+            pending_messages = []  # Сообщения для обработки
 
-            for message in all_messages:
-                is_incoming = not message.out
+            # Проверяем прочитанные сообщения
+            for message in read_messages:
                 is_new = message.id > last_processed_id
                 is_pending_dialog = (dialog_status == 'pending')
 
-                # Показываем входящее сообщение если:
-                # 1. Диалог отложен ('pending') - показываем ВСЕ входящие
-                # 2. ИЛИ сообщение новое (id > last_processed_id) - показываем новые
-                if is_incoming and (is_pending_dialog or is_new):
+                # Показываем сообщение если:
+                # 1. Диалог отложен ('pending') - показываем ВСЕ прочитанные
+                # 2. ИЛИ сообщение новое (id > last_processed_id) - показываем новые прочитанные
+                if is_pending_dialog or is_new:
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
@@ -435,6 +481,7 @@ class TelegramMessageLoaderWeb:
             # Если есть необработанные сообщения, добавляем диалог
             if pending_messages:
                 total_messages += len(pending_messages)
+                stats['unprocessed_dialogs'] += 1  # Диалог с необработанными сообщениями
 
                 # Находим последнее сообщение от вас
                 last_your_message = None
@@ -458,6 +505,9 @@ class TelegramMessageLoaderWeb:
                     'last_message_date': messages[0]['date'] if messages else '',
                     'last_your_message_date': last_your_message
                 })
+            elif read_messages and last_processed_id > 0:
+                # Диалог был обработан (есть прочитанные сообщения, но нет необработанных)
+                stats['processed_dialogs'] += 1
 
         # Сохраняем статистику сканирования
         print(f"[load_dialogs] Saving scan stats: {dialogs_scanned} dialogs, {total_messages} messages")
@@ -467,7 +517,12 @@ class TelegramMessageLoaderWeb:
         dialogs_data.sort(key=lambda x: x['unread_count'], reverse=True)
 
         print(f"[load_dialogs] Returning {len(dialogs_data)} dialogs with unread messages")
-        return dialogs_data
+        print(f"[load_dialogs] Stats: {stats}")
+
+        return {
+            'dialogs': dialogs_data,
+            'stats': stats
+        }
 
     def _get_dialog_name(self, dialog):
         """Получить имя диалога"""
@@ -580,6 +635,6 @@ async def load_messages_web(api_id, api_hash, hours_back=24):
     if not connected:
         raise Exception("Не удалось подключиться. Требуется авторизация.")
 
-    dialogs = await loader.load_dialogs(hours_back)
+    result = await loader.load_dialogs(hours_back)
 
-    return dialogs, loader
+    return result, loader

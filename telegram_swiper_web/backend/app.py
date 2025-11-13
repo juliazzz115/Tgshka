@@ -240,13 +240,18 @@ def api_dialogs():
         hours = request.args.get('hours', 24, type=int)
 
         # Используем уже авторизованный loader
-        dialogs = run_async_in_loader_thread(loader.load_dialogs(hours))
+        result = run_async_in_loader_thread(loader.load_dialogs(hours))
+
+        # result теперь dict с 'dialogs' и 'stats'
+        dialogs = result.get('dialogs', [])
+        stats = result.get('stats', {})
 
         current_dialogs = dialogs
 
         return jsonify({
             'success': True,
             'dialogs': dialogs,
+            'stats': stats,
             'total': len(dialogs),
             'total_unread': sum(d['unread_count'] for d in dialogs)
         })
@@ -400,13 +405,18 @@ def auto_scan_worker():
         if loader:
             try:
                 # Используем уже авторизованный loader
-                dialogs = run_async_in_loader_thread(loader.load_dialogs(24))
+                result = run_async_in_loader_thread(loader.load_dialogs(24))
+
+                # result теперь dict с 'dialogs' и 'stats'
+                dialogs = result.get('dialogs', [])
+                stats = result.get('stats', {})
 
                 current_dialogs = dialogs
 
                 # Уведомляем клиентов через WebSocket
                 socketio.emit('dialogs_updated', {
                     'dialogs': dialogs,
+                    'stats': stats,
                     'total': len(dialogs),
                     'total_unread': sum(d['unread_count'] for d in dialogs)
                 })
