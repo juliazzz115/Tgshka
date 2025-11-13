@@ -333,7 +333,14 @@ class TelegramMessageLoaderWeb:
         if not is_auth:
             raise Exception("Не подключен к Telegram")
 
-        time_limit = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+        # Вычисляем время начала проверки: вчера в 17:00 по UTC
+        now = datetime.now(timezone.utc)
+        yesterday = now.date() - timedelta(days=1)
+        time_limit = datetime.combine(yesterday, datetime.min.time().replace(hour=17), tzinfo=timezone.utc)
+
+        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} to {now}\n")
+        sys.stderr.flush()
+
         dialogs_data = []
         dialogs_scanned = 0
         total_messages = 0
