@@ -333,12 +333,12 @@ class TelegramMessageLoaderWeb:
         if not is_auth:
             raise Exception("Не подключен к Telegram")
 
-        # Вычисляем время начала проверки: вчера в 17:00 по UTC
+        # Вычисляем время начала проверки: вчера в 17:00 по польскому времени (16:00 UTC, так как Польша UTC+1)
         now = datetime.now(timezone.utc)
         yesterday = now.date() - timedelta(days=1)
-        time_limit = datetime.combine(yesterday, datetime.min.time().replace(hour=17), tzinfo=timezone.utc)
+        time_limit = datetime.combine(yesterday, datetime.min.time().replace(hour=16), tzinfo=timezone.utc)
 
-        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} to {now}\n")
+        sys.stderr.write(f"[load_dialogs] Time filter: from {time_limit} (16:00 UTC = 17:00 Poland time) to {now}\n")
         sys.stderr.flush()
 
         dialogs_data = []
@@ -347,8 +347,8 @@ class TelegramMessageLoaderWeb:
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
-        # Получаем диалоги (ограничиваем 30 для быстрой работы)
-        async for dialog in self.client.iter_dialogs(limit=30):
+        # Получаем все диалоги (без лимита, чтобы увидеть все)
+        async for dialog in self.client.iter_dialogs(limit=None):
             dialogs_scanned += 1
             if dialogs_scanned % 10 == 0:
                 print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
