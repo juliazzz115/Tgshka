@@ -199,29 +199,64 @@ async function saveConfig() {
  * Отправить код авторизации
  */
 async function sendCode() {
+    console.log('sendCode() called');
+
     const phone = document.getElementById('phone').value.trim();
+    console.log('Phone:', phone);
 
     if (!phone) {
         alert('Введите номер телефона!');
         return;
     }
 
+    // Блокируем кнопку во время запроса
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Отправляем...';
+
     try {
+        console.log('Sending code request for phone:', phone);
+
         const response = await fetch('/api/connect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone })
         });
 
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Response error:', errorText);
+            alert('Ошибка: ' + errorText);
+            btn.disabled = false;
+            btn.textContent = 'Отправить код';
+            return;
+        }
+
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (data.code_sent) {
             document.getElementById('code-input').classList.remove('hidden');
             alert('Код отправлен! Проверьте Telegram.');
+            btn.disabled = false;
+            btn.textContent = 'Отправить код';
+        } else if (data.error) {
+            alert('Ошибка: ' + data.error);
+            btn.disabled = false;
+            btn.textContent = 'Отправить код';
+        } else {
+            console.log('Unexpected response:', data);
+            btn.disabled = false;
+            btn.textContent = 'Отправить код';
         }
 
     } catch (error) {
+        console.error('Exception in sendCode:', error);
         alert('Ошибка: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = 'Отправить код';
     }
 }
 
@@ -229,14 +264,23 @@ async function sendCode() {
  * Проверить код
  */
 async function verifyCode() {
+    console.log('verifyCode() called');
+
     const phone = document.getElementById('phone').value.trim();
     const code = document.getElementById('code').value.trim();
     const password = document.getElementById('password').value.trim();
+
+    console.log('Phone:', phone, 'Code:', code, 'Has password:', !!password);
 
     if (!phone || !code) {
         alert('Заполните все поля!');
         return;
     }
+
+    // Блокируем кнопку во время запроса
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Проверяем...';
 
     try {
         // Отправляем запрос с кодом и паролем (если есть)
@@ -245,27 +289,62 @@ async function verifyCode() {
             requestBody.password = password;
         }
 
+        console.log('Sending verify_code request:', requestBody);
+
         const response = await fetch('/api/verify_code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
         });
 
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Response error:', errorText);
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.need_password) {
+                    // Требуется пароль 2FA
+                    document.getElementById('password-input').classList.remove('hidden');
+                    alert('Требуется пароль двухфакторной аутентификации!\n\nВведите пароль, который вы установили в настройках безопасности Telegram.');
+                    btn.disabled = false;
+                    btn.textContent = 'Подтвердить';
+                    return;
+                }
+                alert('Ошибка: ' + (errorData.error || 'Неверный код!'));
+            } catch (e) {
+                alert('Ошибка сервера: ' + errorText);
+            }
+            btn.disabled = false;
+            btn.textContent = 'Подтвердить';
+            return;
+        }
+
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (data.success) {
+            alert('Авторизация успешна!');
             showMainPanel();
             loadStats();
         } else if (data.need_password) {
             // Требуется пароль 2FA
             document.getElementById('password-input').classList.remove('hidden');
             alert('Требуется пароль двухфакторной аутентификации!\n\nВведите пароль, который вы установили в настройках безопасности Telegram.');
+            btn.disabled = false;
+            btn.textContent = 'Подтвердить';
         } else {
             alert('Ошибка: ' + (data.error || 'Неверный код!'));
+            btn.disabled = false;
+            btn.textContent = 'Подтвердить';
         }
 
     } catch (error) {
+        console.error('Exception in verifyCode:', error);
         alert('Ошибка: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = 'Подтвердить';
     }
 }
 
