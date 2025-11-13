@@ -17,46 +17,61 @@ _db_queue = queue.Queue()
 _db_worker_thread = None
 _db_worker_running = False
 _db_connection = None
+_db_worker_lock = threading.Lock()  # Защита от одновременного запуска воркеров
 
 
 def _db_worker():
     """Воркер для выполнения операций с БД в отдельном потоке"""
     global _db_connection, _db_worker_running
 
-    # Создаём одно постоянное соединение для этого потока
-    _db_connection = sqlite3.connect("telegram_messages_web.db", timeout=30.0, check_same_thread=False)
-    _db_connection.execute('PRAGMA journal_mode=DELETE')  # Отключаем WAL для простоты
-    _db_connection.execute('PRAGMA synchronous=NORMAL')   # Быстрее записи
+    try:
+        # Создаём одно постоянное соединение для этого потока
+        print(f"[DB Worker] Starting DB worker thread {threading.current_thread().name}")
+        _db_connection = sqlite3.connect("telegram_messages_web.db", timeout=30.0, check_same_thread=False)
+        _db_connection.execute('PRAGMA journal_mode=DELETE')  # Отключаем WAL для простоты
+        _db_connection.execute('PRAGMA synchronous=NORMAL')   # Быстрее записи
+        print("[DB Worker] Database connection established")
 
-    while _db_worker_running:
-        try:
-            # Получаем задачу из очереди (ждём макс 1 секунду)
-            func, result_queue = _db_queue.get(timeout=1.0)
-
+        while _db_worker_running:
             try:
-                # Выполняем функцию
-                result = func(_db_connection)
-                result_queue.put(('success', result))
-            except Exception as e:
-                result_queue.put(('error', e))
-            finally:
-                _db_queue.task_done()
-        except queue.Empty:
-            continue
+                # Получаем задачу из очереди (ждём макс 1 секунду)
+                func, result_queue = _db_queue.get(timeout=1.0)
 
-    # Закрываем соединение при остановке
-    if _db_connection:
-        _db_connection.close()
+                try:
+                    # Выполняем функцию
+                    result = func(_db_connection)
+                    result_queue.put(('success', result))
+                except Exception as e:
+                    print(f"[DB Worker] Error executing DB operation: {e}")
+                    result_queue.put(('error', e))
+                finally:
+                    _db_queue.task_done()
+            except queue.Empty:
+                continue
+
+        # Закрываем соединение при остановке
+        if _db_connection:
+            _db_connection.close()
+            print("[DB Worker] Database connection closed")
+    except Exception as e:
+        print(f"[DB Worker] Fatal error in DB worker: {e}")
+        _db_worker_running = False
 
 
 def _start_db_worker():
     """Запустить воркер БД если он ещё не запущен"""
     global _db_worker_thread, _db_worker_running
 
-    if not _db_worker_running:
-        _db_worker_running = True
-        _db_worker_thread = threading.Thread(target=_db_worker, daemon=True)
-        _db_worker_thread.start()
+    # Thread-safe проверка и запуск
+    with _db_worker_lock:
+        if not _db_worker_running:
+            print("[DB Worker] Starting new DB worker thread")
+            _db_worker_running = True
+            _db_worker_thread = threading.Thread(target=_db_worker, daemon=True)
+            _db_worker_thread.start()
+            time.sleep(0.1)  # Даём воркеру время запуститься
+        else:
+            print("[DB Worker] Worker already running")
 
 
 def _execute_in_queue(func, timeout=30.0):
