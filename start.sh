@@ -1,2 +1,2 @@
 #!/bin/bash
-. /opt/venv/bin/activate && cd telegram_swiper_web/backend && gunicorn --worker-class=gthread --workers=1 --threads=4 --bind 0.0.0.0:$PORT app:app
+. /opt/venv/bin/activate && cd telegram_swiper_web/backend && gunicorn --worker-class=sync --workers=1 --bind 0.0.0.0:$PORT app:app
