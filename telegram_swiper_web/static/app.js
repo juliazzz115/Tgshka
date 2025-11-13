@@ -970,6 +970,65 @@ async function logout() {
 }
 
 /**
+ * Показать инструкции по сохранению сессии
+ */
+async function showSessionInstructions() {
+    console.log('showSessionInstructions() called');
+
+    try {
+        const response = await fetch('/api/get_session');
+        const data = await response.json();
+
+        if (data.success && data.session_string) {
+            // Заполняем textarea
+            document.getElementById('session-string').value = data.session_string;
+
+            // Показываем модальное окно
+            document.getElementById('session-modal').classList.remove('hidden');
+        } else {
+            alert('Не удалось получить сессию: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    } catch (error) {
+        console.error('Error getting session:', error);
+        alert('Ошибка получения сессии: ' + error.message);
+    }
+}
+
+/**
+ * Закрыть модальное окно сессии
+ */
+function closeSessionModal() {
+    document.getElementById('session-modal').classList.add('hidden');
+}
+
+/**
+ * Скопировать строку сессии
+ */
+async function copySessionString() {
+    const textarea = document.getElementById('session-string');
+    textarea.select();
+
+    try {
+        await navigator.clipboard.writeText(textarea.value);
+        showVisualNotification('✓ Строка сессии скопирована!');
+
+        // Меняем текст кнопки временно
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Скопировано!';
+        btn.style.background = '#4caf50';
+
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '';
+        }, 2000);
+    } catch (error) {
+        console.error('Failed to copy:', error);
+        alert('Не удалось скопировать. Скопируйте текст вручную.');
+    }
+}
+
+/**
  * Очистить историю
  */
 async function clearHistory() {

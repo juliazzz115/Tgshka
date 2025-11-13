@@ -471,6 +471,53 @@
         .visual-notification.show {
             transform: translateX(-50%) translateY(0);
         }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 28px;
+            color: #999;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        @media (max-width: 600px) {
+            .modal-content {
+                padding: 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -589,9 +636,12 @@
                         <div class="stat-label">Требуют обработки</div>
                     </div>
                 </div>
-                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-primary" onclick="loadMessages()">
                         Обновить
+                    </button>
+                    <button class="btn btn-success" onclick="showSessionInstructions()" style="background: #5c9ead;">
+                        💾 Сохранить сессию
                     </button>
                     <button class="btn btn-danger" onclick="logout()">
                         Выйти
@@ -615,6 +665,49 @@
             if (e.key === 'ArrowRight' || e.key === ' ') swipeRight();
         });
     </script>
+
+    <!-- Session Modal -->
+    <div id="session-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeSessionModal()">&times;</span>
+            <h2 style="margin-bottom: 20px;">💾 Сохранение сессии</h2>
+
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #1565c0; font-size: 14px;">
+                    💡 <strong>Зачем это нужно?</strong><br>
+                    Сохраните сессию в переменные окружения Railway, чтобы <strong>не вводить код авторизации</strong> после каждого обновления приложения!
+                </p>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Ваша строка сессии:</label>
+                <textarea id="session-string" readonly style="width: 100%; height: 100px; padding: 10px; border: 2px solid #6bb6d0; border-radius: 8px; font-family: monospace; font-size: 12px; resize: none;"></textarea>
+                <button class="btn btn-primary" onclick="copySessionString()" style="margin-top: 10px; width: 100%;">
+                    📋 Копировать строку
+                </button>
+            </div>
+
+            <div style="background: #fff9e6; padding: 15px; border-radius: 8px; border: 1px solid #ffd700;">
+                <h3 style="margin-top: 0; color: #856404; font-size: 16px;">📝 Инструкция для Railway:</h3>
+                <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.8; font-size: 14px;">
+                    <li>Скопируйте строку сессии выше (кнопка "Копировать")</li>
+                    <li>Откройте ваш проект на <a href="https://railway.app" target="_blank" style="color: #6bb6d0;">Railway</a></li>
+                    <li>Перейдите в раздел <strong>Variables</strong></li>
+                    <li>Нажмите <strong>New Variable</strong> и добавьте:
+                        <ul style="margin-top: 5px;">
+                            <li><strong>Name:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">TELEGRAM_SESSION</code></li>
+                            <li><strong>Value:</strong> Вставьте скопированную строку</li>
+                        </ul>
+                    </li>
+                    <li>Нажмите <strong>Add</strong> или <strong>Save</strong></li>
+                    <li>Приложение перезапустится автоматически ✨</li>
+                </ol>
+                <p style="margin: 10px 0 0 0; color: #856404; font-size: 13px;">
+                    ✅ Готово! Теперь вы сможете обновлять код <strong>без повторного входа</strong>!
+                </p>
+            </div>
+        </div>
+    </div>
 
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay hidden">

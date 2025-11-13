@@ -373,6 +373,29 @@ def api_clear_history():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/get_session', methods=['GET'])
+def api_get_session():
+    """Получить session string для сохранения в переменные окружения"""
+    global loader
+
+    if not loader:
+        return jsonify({'error': 'Не подключен к Telegram'}), 400
+
+    try:
+        session_string = loader.get_session_string()
+        if session_string:
+            return jsonify({
+                'success': True,
+                'session_string': session_string,
+                'instructions': 'Сохраните эту строку в переменную окружения TELEGRAM_SESSION на Railway'
+            })
+        else:
+            return jsonify({'error': 'Сессия не найдена'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
     """Выйти из аккаунта"""

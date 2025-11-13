@@ -159,14 +159,26 @@ class TelegramMessageLoaderWeb:
         _execute_in_queue(_init)
 
     def _load_session_string(self):
-        """Загрузить строку сессии из БД"""
+        """Загрузить строку сессии (сначала из ENV, потом из БД)"""
+        import os
+
+        # Сначала пробуем загрузить из переменной окружения (не сбрасывается при обновлениях)
+        env_session = os.environ.get('TELEGRAM_SESSION')
+        if env_session:
+            print("[Session] Loaded session from environment variable TELEGRAM_SESSION")
+            return env_session
+
+        # Если нет в ENV, загружаем из БД (может сброситься при обновлениях)
         def _load(conn):
             cursor = conn.cursor()
             cursor.execute('SELECT session_string FROM telegram_session WHERE id = 1')
             result = cursor.fetchone()
             return result[0] if result else None
 
-        return _execute_in_queue(_load)
+        db_session = _execute_in_queue(_load)
+        if db_session:
+            print("[Session] Loaded session from database")
+        return db_session
 
     def _save_session_string(self, session_string):
         """Сохранить строку сессии в БД"""
@@ -178,9 +190,18 @@ class TelegramMessageLoaderWeb:
             ''', (session_string,))
             conn.commit()
             print(f"[Session] Saved session string to DB")
+            print(f"[Session] ⚠️  ВАЖНО! Чтобы не логиниться после обновлений:")
+            print(f"[Session] Добавьте переменную окружения TELEGRAM_SESSION с этим значением:")
+            print(f"[Session] {session_string[:50]}...")
             return None
 
         _execute_in_queue(_save)
+
+    def get_session_string(self):
+        """Получить текущую session string для сохранения в переменные окружения"""
+        if self.client and self.client.session:
+            return self.client.session.save()
+        return self._load_session_string()
 
     async def connect(self):
         """Подключение к Telegram с использованием StringSession"""
