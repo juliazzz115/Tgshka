@@ -363,6 +363,26 @@ def api_clear_history():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    """Выйти из аккаунта"""
+    global loader
+
+    if not loader:
+        return jsonify({'error': 'Не подключен к Telegram'}), 400
+
+    try:
+        # Отключаемся и удаляем сессию
+        run_async_in_loader_thread(loader.disconnect())
+        loader.clear_session()
+        loader = None
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def auto_scan_worker():
     """Фоновый worker для автосканирования"""
     global auto_scan_enabled, loader, current_dialogs

@@ -472,25 +472,29 @@
                 <h3>📊 Статистика</h3>
                 <div class="stats-grid">
                     <div class="stat-item">
-                        <div class="stat-value" id="stat-answered">0</div>
+                        <div class="stat-value" id="stat-total-dialogs">0</div>
+                        <div class="stat-label">Всего диалогов</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-processed-dialogs">0</div>
                         <div class="stat-label">Обработано</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="stat-marked">0</div>
-                        <div class="stat-label">Помечено</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="stat-dialogs">0</div>
-                        <div class="stat-label">Диалогов</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value" id="stat-scans">0</div>
                         <div class="stat-label">Сканирований</div>
                     </div>
                 </div>
-                <button class="btn btn-danger" onclick="clearHistory()" style="margin-top: 15px;">
-                    🗑️ Очистить историю
-                </button>
+                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button class="btn btn-primary" onclick="loadMessages()">
+                        🔄 Обновить
+                    </button>
+                    <button class="btn btn-danger" onclick="logout()">
+                        🚪 Выйти
+                    </button>
+                    <button class="btn btn-danger" onclick="clearHistory()">
+                        🗑️ Очистить историю
+                    </button>
+                </div>
             </div>
         </div>
     </div>

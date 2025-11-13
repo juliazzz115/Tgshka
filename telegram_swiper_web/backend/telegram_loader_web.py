@@ -224,6 +224,17 @@ class TelegramMessageLoaderWeb:
         if self.client:
             await self.client.disconnect()
 
+    def clear_session(self):
+        """Удалить сохраненную сессию"""
+        def _clear(conn):
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM telegram_session WHERE id = 1')
+            conn.commit()
+            print("[Session] Session cleared from DB")
+            return None
+
+        _execute_in_queue(_clear)
+
     def is_message_processed(self, dialog_id, message_id):
         """Проверка, обработано ли сообщение"""
         def _query(conn):

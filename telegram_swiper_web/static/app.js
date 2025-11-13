@@ -313,18 +313,17 @@ function createCard(dialog, zIndex) {
         <div class="card-title">👤 ${dialog.dialog_name}</div>
         <div class="card-date">📅 ${dialog.last_message_date}</div>
         ${dialog.last_your_message_date ? `<div class="card-date">✉️ Вы писали: ${dialog.last_your_message_date}</div>` : ''}
-        <div class="card-unread">⚠️ ${dialog.unread_count} сообщений требуют ответа!</div>
+        <div class="card-info">💬 Новых сообщений: ${dialog.unread_count}</div>
     `;
 
     // Body
     const body = document.createElement('div');
     body.className = 'card-body';
 
-    // Контекст диалога
+    // История диалога
     if (dialog.context && dialog.context.length > 0) {
         const contextSection = document.createElement('div');
         contextSection.className = 'context-section';
-        contextSection.innerHTML = '<div class="section-title">💬 История диалога:</div>';
 
         dialog.context.forEach(msg => {
             const messageDiv = document.createElement('div');
@@ -337,25 +336,6 @@ function createCard(dialog, zIndex) {
         });
 
         body.appendChild(contextSection);
-    }
-
-    // Непрочитанные сообщения
-    if (dialog.unread_messages && dialog.unread_messages.length > 0) {
-        const unreadSection = document.createElement('div');
-        unreadSection.className = 'unread-section';
-        unreadSection.innerHTML = '<div class="section-title">⚠️ Требуют ответа:</div>';
-
-        dialog.unread_messages.forEach((msg, i) => {
-            const unreadDiv = document.createElement('div');
-            unreadDiv.className = 'unread-message';
-            unreadDiv.innerHTML = `
-                <strong>${i + 1}. [${msg.time}]</strong><br>
-                ${msg.text}
-            `;
-            unreadSection.appendChild(unreadDiv);
-        });
-
-        body.appendChild(unreadSection);
     }
 
     card.appendChild(header);
@@ -543,14 +523,38 @@ async function loadStats() {
         const data = await response.json();
 
         if (data.success) {
-            document.getElementById('stat-answered').textContent = data.stats.total_answered;
-            document.getElementById('stat-marked').textContent = data.stats.total_marked;
-            document.getElementById('stat-dialogs').textContent = data.stats.unique_dialogs;
+            document.getElementById('stat-total-dialogs').textContent = data.stats.total_dialogs;
+            document.getElementById('stat-processed-dialogs').textContent = data.stats.processed_dialogs;
             document.getElementById('stat-scans').textContent = data.stats.total_scans;
         }
 
     } catch (error) {
         console.error('Stats error:', error);
+    }
+}
+
+/**
+ * Выйти из аккаунта
+ */
+async function logout() {
+    if (!confirm('Вы уверены что хотите выйти?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/logout', {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Вы вышли из аккаунта');
+            location.reload();
+        } else {
+            alert('Ошибка выхода: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Ошибка выхода: ' + error.message);
     }
 }
 
