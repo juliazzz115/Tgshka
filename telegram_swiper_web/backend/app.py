@@ -409,8 +409,8 @@ def auto_scan_worker():
             except Exception as e:
                 print(f"Auto scan error: {e}")
 
-        # Ждем 1 час
-        for _ in range(3600):
+        # Ждем 5 минут (300 секунд) для более частых обновлений
+        for _ in range(300):
             if not auto_scan_enabled:
                 break
             time.sleep(1)

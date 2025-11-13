@@ -16,10 +16,37 @@ let currentY = 0;
 let isDragging = false;
 
 /**
+ * Запросить разрешение на уведомления
+ */
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            console.log('Notification permission:', permission);
+        });
+    }
+}
+
+/**
+ * Показать уведомление о новых диалогах
+ */
+function showNotification(dialogsCount) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Telegram Swiper', {
+            body: `Найдено ${dialogsCount} новых диалогов`,
+            icon: '/static/telegram-icon.png',
+            badge: '/static/telegram-icon.png'
+        });
+    }
+}
+
+/**
  * Инициализация при загрузке страницы
  */
 window.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Telegram Swiper v3 started');
+
+    // Запрашиваем разрешение на уведомления
+    requestNotificationPermission();
 
     // Подключаем WebSocket
     connectWebSocket();
@@ -43,6 +70,12 @@ function connectWebSocket() {
 
     socket.on('dialogs_updated', (data) => {
         console.log('📨 Dialogs updated:', data);
+
+        // Показываем уведомление если есть новые диалоги
+        if (data.dialogs && data.dialogs.length > 0) {
+            showNotification(data.dialogs.length);
+        }
+
         dialogs = data.dialogs;
         currentIndex = 0;
         updateDisplay();
@@ -344,6 +377,14 @@ function createCard(dialog, zIndex) {
     // Только для первой карточки добавляем обработчики
     if (zIndex === 0) {
         addSwipeHandlers(card);
+
+        // Автопрокрутка к последним сообщениям
+        setTimeout(() => {
+            const contextSection = card.querySelector('.context-section');
+            if (contextSection) {
+                contextSection.scrollTop = contextSection.scrollHeight;
+            }
+        }, 100);
     }
 
     return card;
