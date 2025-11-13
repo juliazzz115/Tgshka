@@ -347,8 +347,8 @@ class TelegramMessageLoaderWeb:
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
-        # Получаем диалоги (лимит 100 для баланса между полнотой и скоростью)
-        async for dialog in self.client.iter_dialogs(limit=100):
+        # Получаем диалоги (лимит 50 для быстрой загрузки)
+        async for dialog in self.client.iter_dialogs(limit=50):
             dialogs_scanned += 1
             if dialogs_scanned % 10 == 0:
                 print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
@@ -360,9 +360,9 @@ class TelegramMessageLoaderWeb:
 
             print(f"[load_dialogs] Processing user dialog: {dialog.name}")
 
-            # Шаг 1: Собираем все сообщения из диалога
+            # Шаг 1: Собираем все сообщения из диалога (limit=30 для ускорения)
             all_messages = []
-            async for message in self.client.iter_messages(dialog, limit=50):
+            async for message in self.client.iter_messages(dialog, limit=30):
                 if message.date < time_limit:
                     break
                 if message.text:  # Пропускаем служебные
@@ -395,9 +395,6 @@ class TelegramMessageLoaderWeb:
                 # Все непрочитанные или нет входящих
                 read_inbox_max_id = 0
 
-            sys.stderr.write(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, {len(incoming_messages)} incoming, unread_count={unread_count}, last_processed_id={last_processed_id}, read_inbox_max_id={read_inbox_max_id}\n")
-            sys.stderr.flush()
-
             # Шаг 3: Фильтруем сообщения - показываем только новые (с id > last_processed_id)
             messages = []
             pending_messages = []  # Входящие сообщения, требующие обработки
@@ -409,8 +406,6 @@ class TelegramMessageLoaderWeb:
                 # message.id > last_processed_id - еще не обработано в приложении
 
                 if not message.out and message.id <= read_inbox_max_id and message.id > last_processed_id:
-                    sys.stderr.write(f"  -> Adding message ID={message.id} (read, not processed yet)\n")
-                    sys.stderr.flush()
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
