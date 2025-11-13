@@ -262,7 +262,17 @@ class TelegramMessageLoaderWeb:
 
     async def load_dialogs(self, hours_back=24):
         """Загрузить диалоги с непрочитанными сообщениями"""
-        if not self.client or not await self.client.is_user_authorized():
+        print(f"[load_dialogs] Starting, hours_back={hours_back}")
+
+        if not self.client:
+            print("[load_dialogs] ERROR: No client")
+            raise Exception("Клиент не создан")
+
+        print("[load_dialogs] Checking authorization...")
+        is_auth = await self.client.is_user_authorized()
+        print(f"[load_dialogs] Client authorized: {is_auth}")
+
+        if not is_auth:
             raise Exception("Не подключен к Telegram")
 
         time_limit = datetime.now(timezone.utc) - timedelta(hours=hours_back)
@@ -270,13 +280,20 @@ class TelegramMessageLoaderWeb:
         dialogs_scanned = 0
         total_messages = 0
 
-        # Получаем все диалоги
-        async for dialog in self.client.iter_dialogs():
+        print("[load_dialogs] Starting to iterate dialogs...")
+
+        # Получаем все диалоги (ограничиваем 100 для начала)
+        async for dialog in self.client.iter_dialogs(limit=100):
             dialogs_scanned += 1
+            if dialogs_scanned % 10 == 0:
+                print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
 
             # Пропускаем каналы и группы
             if isinstance(dialog.entity, (Chat, Channel)):
+                print(f"[load_dialogs] Skipping {dialog.name} (channel/group)")
                 continue
+
+            print(f"[load_dialogs] Processing user dialog: {dialog.name}")
 
             # Получаем последние сообщения
             messages = []
@@ -334,11 +351,13 @@ class TelegramMessageLoaderWeb:
                 })
 
         # Сохраняем статистику сканирования
+        print(f"[load_dialogs] Saving scan stats: {dialogs_scanned} dialogs, {total_messages} messages")
         self._save_scan_stats(dialogs_scanned, total_messages)
 
         # Сортируем по количеству непрочитанных (больше = важнее)
         dialogs_data.sort(key=lambda x: x['unread_count'], reverse=True)
 
+        print(f"[load_dialogs] Returning {len(dialogs_data)} dialogs with unread messages")
         return dialogs_data
 
     def _get_dialog_name(self, dialog):
