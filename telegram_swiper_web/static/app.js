@@ -40,13 +40,30 @@ function showNotification(dialogsCount) {
 }
 
 /**
+ * Показать визуальное уведомление внутри приложения
+ */
+function showVisualNotification(message) {
+    // Создаем элемент уведомления
+    const notification = document.createElement('div');
+    notification.className = 'visual-notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Показываем
+    setTimeout(() => notification.classList.add('show'), 10);
+
+    // Скрываем через 3 секунды
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+/**
  * Инициализация при загрузке страницы
  */
 window.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Telegram Swiper v3 started');
-
-    // Запрашиваем разрешение на уведомления
-    requestNotificationPermission();
 
     // Подключаем WebSocket
     connectWebSocket();
@@ -73,7 +90,10 @@ function connectWebSocket() {
 
         // Показываем уведомление если есть новые диалоги
         if (data.dialogs && data.dialogs.length > 0) {
+            // Browser notification (если разрешено)
             showNotification(data.dialogs.length);
+            // Визуальное уведомление (всегда работает)
+            showVisualNotification(`Найдено ${data.dialogs.length} новых диалогов!`);
         }
 
         dialogs = data.dialogs;
@@ -278,6 +298,9 @@ function showMainPanel() {
  * Загрузить диалоги
  */
 async function loadDialogs(hours = 24) {
+    // Запрашиваем разрешение на уведомления при первой загрузке
+    requestNotificationPermission();
+
     try {
         const response = await fetch(`/api/dialogs?hours=${hours}`);
         const data = await response.json();
@@ -289,6 +312,11 @@ async function loadDialogs(hours = 24) {
             updateCounter(data.total, data.total_unread);
             updateDisplay();
             loadStats();
+
+            // Показываем визуальное уведомление если есть новые диалоги
+            if (data.dialogs && data.dialogs.length > 0) {
+                showVisualNotification(`Найдено ${data.dialogs.length} диалогов`);
+            }
         } else {
             alert('Ошибка: ' + data.error);
         }
@@ -378,13 +406,20 @@ function createCard(dialog, zIndex) {
     if (zIndex === 0) {
         addSwipeHandlers(card);
 
-        // Автопрокрутка к последним сообщениям
+        // Автопрокрутка к последним сообщениям (для мобильных нужен больший таймаут)
         setTimeout(() => {
-            const contextSection = card.querySelector('.context-section');
-            if (contextSection) {
-                contextSection.scrollTop = contextSection.scrollHeight;
+            const cardBody = card.querySelector('.card-body');
+            if (cardBody) {
+                // Прокручиваем body карточки к концу
+                cardBody.scrollTop = cardBody.scrollHeight;
+
+                // Дополнительно прокручиваем context-section если есть
+                const contextSection = card.querySelector('.context-section');
+                if (contextSection) {
+                    contextSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
             }
-        }, 100);
+        }, 500); // Увеличили таймаут до 500мс для мобильных
     }
 
     return card;
