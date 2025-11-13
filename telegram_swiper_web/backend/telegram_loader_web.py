@@ -373,9 +373,11 @@ class TelegramMessageLoaderWeb:
             pending_messages = []  # Входящие сообщения, требующие обработки
 
             for message in all_messages:
-                # Показываем входящие сообщения, которые новее последнего обработанного
-                # Это означает: если появилось новое сообщение после обработки - диалог снова появится
-                if not message.out and message.id > last_processed_id:
+                # Показываем только ПРОЧИТАННЫЕ в Telegram входящие сообщения, которые еще не обработаны в приложении
+                # not message.out - входящее сообщение (не от меня)
+                # not message.unread - прочитано в Telegram
+                # message.id > last_processed_id - еще не обработано в приложении
+                if not message.out and not message.unread and message.id > last_processed_id:
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
