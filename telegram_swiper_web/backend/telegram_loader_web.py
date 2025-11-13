@@ -406,8 +406,8 @@ class TelegramMessageLoaderWeb:
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
-        # Получаем диалоги (лимит 30 для быстрой загрузки)
-        async for dialog in self.client.iter_dialogs(limit=30):
+        # Получаем диалоги (лимит 50 - показываем только необработанные, остальные пропускаем)
+        async for dialog in self.client.iter_dialogs(limit=50):
             dialogs_scanned += 1
             if dialogs_scanned % 10 == 0:
                 print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
@@ -523,6 +523,9 @@ class TelegramMessageLoaderWeb:
                 # Время первого необработанного сообщения (для сортировки от старого к новому)
                 first_pending_time = pending_messages[0]['date'] if pending_messages else ''
 
+                # Находим максимальный ID входящего сообщения (для корректной обработки)
+                max_incoming_id = max([msg.id for msg in incoming_messages]) if incoming_messages else 0
+
                 dialogs_data.append({
                     'dialog_id': dialog.id,
                     'dialog_name': self._get_dialog_name(dialog),
@@ -532,7 +535,8 @@ class TelegramMessageLoaderWeb:
                     'context': list(reversed(messages)),  # От старых к новым
                     'last_message_date': messages[0]['date'] if messages else '',
                     'last_your_message_date': last_your_message,
-                    'first_pending_time': first_pending_time  # Для сортировки
+                    'first_pending_time': first_pending_time,  # Для сортировки
+                    'max_incoming_id': max_incoming_id  # Максимальный ID входящего для обработки
                 })
             elif read_messages and last_processed_id > 0:
                 # Диалог был обработан (есть прочитанные сообщения, но нет необработанных)

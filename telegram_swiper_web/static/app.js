@@ -492,7 +492,7 @@ async function loadDialogs(hours = 24) {
     requestNotificationPermission();
 
     // Полноэкранный loader
-    showLoader('Загрузка диалогов...', 'Обрабатываем последние 30 диалогов за сегодня');
+    showLoader('Загрузка диалогов...', 'Сканируем 50 диалогов, показываем необработанные');
 
     // Индикатор загрузки на кнопке
     const loadBtn = document.querySelector('button[onclick="loadDialogs()"]');
@@ -521,6 +521,13 @@ async function loadDialogs(hours = 24) {
             // Показываем уведомление о результате
             if (data.dialogs && data.dialogs.length > 0) {
                 showVisualNotification(`✓ Найдено ${data.dialogs.length} диалогов`);
+
+                // Подсказка как загрузить следующие
+                if (data.dialogs.length >= 30) {
+                    setTimeout(() => {
+                        showVisualNotification('💡 После обработки нажмите "Обновить" для следующих диалогов');
+                    }, 3000);
+                }
             } else {
                 showVisualNotification('✓ Нет новых диалогов для обработки');
                 alert('Нет новых диалогов!\n\nВсе диалоги обработаны или нет сообщений за сегодня.');

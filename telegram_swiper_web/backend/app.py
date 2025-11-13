@@ -286,17 +286,22 @@ def api_process():
             return jsonify({'error': 'Диалог не найден'}), 404
 
         if action == 'answered':
-            # При "Обработано" - сохраняем максимальный ID сообщения со статусом 'processed'
-            # Диалог исчезнет, но появится снова если придут новые сообщения от клиента
-            message_ids = [msg['id'] for msg in dialog['unread_messages']]
-            if message_ids:
-                max_message_id = max(message_ids)
+            # При "Обработано" - сохраняем ID ПОСЛЕДНЕГО входящего сообщения в диалоге
+            # Используем max_incoming_id если есть, иначе max из unread_messages
+            if 'max_incoming_id' in dialog and dialog['max_incoming_id']:
+                max_message_id = dialog['max_incoming_id']
+            else:
+                message_ids = [msg['id'] for msg in dialog['unread_messages']]
+                max_message_id = max(message_ids) if message_ids else 0
+
+            if max_message_id > 0:
                 loader.set_last_processed_message_id(
                     dialog_id,
                     max_message_id,
                     dialog['dialog_name'],
                     status='processed'  # Диалог обработан
                 )
+                print(f"[Process] Dialog {dialog['dialog_name']} marked as processed, last_id={max_message_id}")
         elif action == 'mark_unread':
             # При "Отложить" - помечаем статус 'pending'
             # Диалог будет ВСЕГДА показываться при обновлении, пока не будет обработан
