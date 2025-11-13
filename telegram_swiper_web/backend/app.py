@@ -142,7 +142,7 @@ def run_async_in_loader_thread(coro):
     future = asyncio.run_coroutine_threadsafe(coro, loader_loop)
 
     try:
-        return future.result(timeout=60)  # Таймаут 60 секунд
+        return future.result(timeout=120)  # Таймаут 120 секунд для загрузки большого количества диалогов
     except Exception as e:
         raise e
 
