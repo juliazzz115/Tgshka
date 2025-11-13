@@ -4,6 +4,5 @@ flask-cors==4.0.0
 telethon==1.34.0
 python-socketio==5.10.0
 eventlet==0.33.3
-gunicorn==21.2.0
 cryptg
 nest-asyncio==1.6.0
