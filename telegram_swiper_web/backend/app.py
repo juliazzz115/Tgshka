@@ -38,8 +38,8 @@ app = Flask(__name__,
             static_folder='../static')
 app.config['SECRET_KEY'] = 'telegram-swiper-secret-key-change-in-production'
 CORS(app)
-# Используем eventlet mode для WebSocket поддержки
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# Автоматический выбор async mode (eventlet/threading/другое)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Глобальное состояние
 loader = None
