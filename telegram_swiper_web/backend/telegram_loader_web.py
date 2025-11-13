@@ -5,6 +5,7 @@ Telegram Message Loader для веб-версии
 
 import asyncio
 import sqlite3
+import time
 from datetime import datetime, timedelta
 from telethon import TelegramClient
 from telethon.tl.types import User, Chat, Channel
@@ -22,6 +23,8 @@ class TelegramMessageLoaderWeb:
     def init_database(self):
         """Инициализация базы данных"""
         conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
+        conn.execute('PRAGMA journal_mode=WAL')  # Write-Ahead Logging для лучшей конкурентности
+        conn.execute('PRAGMA busy_timeout=30000')  # 30 секунд таймаут
         cursor = conn.cursor()
 
         # Таблица для отслеживания обработанных сообщений
@@ -58,6 +61,24 @@ class TelegramMessageLoaderWeb:
         conn.commit()
         conn.close()
 
+    def _get_db_connection(self):
+        """Получить соединение с БД с правильными настройками"""
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA busy_timeout=30000')
+        return conn
+
+    def _execute_with_retry(self, func, max_retries=3):
+        """Выполнить функцию работы с БД с повторными попытками"""
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except sqlite3.OperationalError as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.1 * (2 ** attempt))  # Exponential backoff
+                    continue
+                raise
+
     async def connect(self):
         """Подключение к Telegram"""
         self.client = TelegramClient(self.session_name, self.api_id, self.api_hash)
@@ -91,16 +112,20 @@ class TelegramMessageLoaderWeb:
 
     def is_message_processed(self, dialog_id, message_id):
         """Проверка, обработано ли сообщение"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        cursor = conn.cursor()
+        def _query():
+            conn = self._get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT action FROM processed_messages
+                    WHERE dialog_id = ? AND message_id = ?
+                ''', (dialog_id, message_id))
+                result = cursor.fetchone()
+                return result
+            finally:
+                conn.close()
 
-        cursor.execute('''
-            SELECT action FROM processed_messages
-            WHERE dialog_id = ? AND message_id = ?
-        ''', (dialog_id, message_id))
-
-        result = cursor.fetchone()
-        conn.close()
+        result = self._execute_with_retry(_query)
 
         if result:
             # Если помечено как "answered" - не показывать
@@ -110,20 +135,24 @@ class TelegramMessageLoaderWeb:
 
     def mark_messages_as_processed(self, dialog_id, message_ids, action="answered"):
         """Пометить сообщения как обработанные"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        cursor = conn.cursor()
+        def _write():
+            conn = self._get_db_connection()
+            try:
+                cursor = conn.cursor()
+                timestamp = datetime.now().isoformat()
 
-        timestamp = datetime.now().isoformat()
+                for msg_id in message_ids:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO processed_messages
+                        (message_id, dialog_id, action, timestamp)
+                        VALUES (?, ?, ?, ?)
+                    ''', (msg_id, dialog_id, action, timestamp))
 
-        for msg_id in message_ids:
-            cursor.execute('''
-                INSERT OR REPLACE INTO processed_messages
-                (message_id, dialog_id, action, timestamp)
-                VALUES (?, ?, ?, ?)
-            ''', (msg_id, dialog_id, action, timestamp))
+                conn.commit()
+            finally:
+                conn.close()
 
-        conn.commit()
-        conn.close()
+        self._execute_with_retry(_write)
 
     async def load_dialogs(self, hours_back=24):
         """Загрузить диалоги с непрочитанными сообщениями"""
@@ -227,80 +256,93 @@ class TelegramMessageLoaderWeb:
 
     def _save_scan_stats(self, dialogs_scanned, messages_found):
         """Сохранить статистику сканирования"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        cursor = conn.cursor()
+        def _write():
+            conn = self._get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO scan_history (scan_time, dialogs_scanned, messages_found)
+                    VALUES (?, ?, ?)
+                ''', (datetime.now().isoformat(), dialogs_scanned, messages_found))
+                conn.commit()
+            finally:
+                conn.close()
 
-        cursor.execute('''
-            INSERT INTO scan_history (scan_time, dialogs_scanned, messages_found)
-            VALUES (?, ?, ?)
-        ''', (datetime.now().isoformat(), dialogs_scanned, messages_found))
-
-        conn.commit()
-        conn.close()
+        self._execute_with_retry(_write)
 
     def get_statistics(self):
         """Получить статистику"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        cursor = conn.cursor()
+        def _query():
+            conn = self._get_db_connection()
+            try:
+                cursor = conn.cursor()
 
-        # Всего обработанных
-        cursor.execute("SELECT COUNT(*) FROM processed_messages WHERE action = 'answered'")
-        total_answered = cursor.fetchone()[0]
+                # Всего обработанных
+                cursor.execute("SELECT COUNT(*) FROM processed_messages WHERE action = 'answered'")
+                total_answered = cursor.fetchone()[0]
 
-        # Помечено непрочитанными
-        cursor.execute("SELECT COUNT(*) FROM processed_messages WHERE action = 'mark_unread'")
-        total_marked = cursor.fetchone()[0]
+                # Помечено непрочитанными
+                cursor.execute("SELECT COUNT(*) FROM processed_messages WHERE action = 'mark_unread'")
+                total_marked = cursor.fetchone()[0]
 
-        # Уникальных диалогов
-        cursor.execute("SELECT COUNT(DISTINCT dialog_id) FROM processed_messages")
-        unique_dialogs = cursor.fetchone()[0]
+                # Уникальных диалогов
+                cursor.execute("SELECT COUNT(DISTINCT dialog_id) FROM processed_messages")
+                unique_dialogs = cursor.fetchone()[0]
 
-        # Всего сканирований
-        cursor.execute("SELECT COUNT(*) FROM scan_history")
-        total_scans = cursor.fetchone()[0]
+                # Всего сканирований
+                cursor.execute("SELECT COUNT(*) FROM scan_history")
+                total_scans = cursor.fetchone()[0]
 
-        conn.close()
+                return {
+                    'total_answered': total_answered,
+                    'total_marked': total_marked,
+                    'unique_dialogs': unique_dialogs,
+                    'total_scans': total_scans
+                }
+            finally:
+                conn.close()
 
-        return {
-            'total_answered': total_answered,
-            'total_marked': total_marked,
-            'unique_dialogs': unique_dialogs,
-            'total_scans': total_scans
-        }
+        return self._execute_with_retry(_query)
 
     def get_last_scan_time(self):
         """Получить время последнего сканирования"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        cursor = conn.cursor()
+        def _query():
+            conn = self._get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT scan_time, dialogs_scanned, messages_found
+                    FROM scan_history
+                    ORDER BY id DESC LIMIT 1
+                ''')
+                result = cursor.fetchone()
 
-        cursor.execute('''
-            SELECT scan_time, dialogs_scanned, messages_found
-            FROM scan_history
-            ORDER BY id DESC LIMIT 1
-        ''')
+                if result:
+                    return {
+                        'time': result[0],
+                        'dialogs_scanned': result[1],
+                        'messages_found': result[2]
+                    }
+                return None
+            finally:
+                conn.close()
 
-        result = cursor.fetchone()
-        conn.close()
-
-        if result:
-            return {
-                'time': result[0],
-                'dialogs_scanned': result[1],
-                'messages_found': result[2]
-            }
-        return None
+        return self._execute_with_retry(_query)
 
     def clear_all_history(self):
         """Очистить всю историю"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        cursor = conn.cursor()
+        def _write():
+            conn = self._get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM processed_messages')
+                cursor.execute('DELETE FROM dialog_tracking')
+                cursor.execute('DELETE FROM scan_history')
+                conn.commit()
+            finally:
+                conn.close()
 
-        cursor.execute('DELETE FROM processed_messages')
-        cursor.execute('DELETE FROM dialog_tracking')
-        cursor.execute('DELETE FROM scan_history')
-
-        conn.commit()
-        conn.close()
+        self._execute_with_retry(_write)
 
 
 async def load_messages_web(api_id, api_hash, hours_back=24):
