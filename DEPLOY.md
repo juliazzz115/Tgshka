@@ -60,10 +60,10 @@ Railway автоматически:
 - **Name**: `telegram-swiper` (или любое другое)
 - **Region**: `Frankfurt (EU Central)` (или ближайший к вам)
 - **Branch**: `claude/telegram-web-app-011CV4knLVxZVbV4RmwC1ukV`
-- **Root Directory**: `telegram_swiper_web/backend`
+- **Root Directory**: оставьте пустым (не заполняйте!)
 - **Runtime**: `Python 3`
-- **Build Command**: `pip install -r ../requirements.txt`
-- **Start Command**: `gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app`
+- **Build Command**: `pip install -r telegram_swiper_web/requirements.txt`
+- **Start Command**: `cd telegram_swiper_web/backend && gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app`
 
 ### Шаг 4: Создайте сервис
 1. Нажмите **"Create Web Service"**
