@@ -452,7 +452,7 @@ class TelegramMessageLoaderWeb:
             messages = []
             pending_messages = []  # Сообщения для обработки
 
-            # Проверяем прочитанные сообщения
+            # Проверяем прочитанные сообщения (только входящие для определения необработанных)
             for message in read_messages:
                 is_new = message.id > last_processed_id
                 is_pending_dialog = (dialog_status == 'pending')
@@ -461,22 +461,26 @@ class TelegramMessageLoaderWeb:
                 # 1. Диалог отложен ('pending') - показываем ВСЕ прочитанные
                 # 2. ИЛИ сообщение новое (id > last_processed_id) - показываем новые прочитанные
                 if is_pending_dialog or is_new:
+                    # Конвертируем время в GMT+1 (Польша)
+                    poland_time = message.date + timedelta(hours=1)
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
-                        'date': message.date.strftime('%Y-%m-%d %H:%M:%S'),
-                        'time': message.date.strftime('%H:%M')
+                        'date': poland_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'time': poland_time.strftime('%H:%M')
                     })
 
-                # Собираем контекст (последние 10 сообщений)
-                if len(messages) < 10:
-                    messages.append({
-                        'id': message.id,
-                        'text': message.text,
-                        'date': message.date.strftime('%H:%M'),
-                        'from_me': message.out,
-                        'sender': 'Вы' if message.out else self._get_dialog_name(dialog)
-                    })
+            # Собираем контекст из ВСЕХ сообщений (последние 10) - включая исходящие от менеджера
+            for message in all_messages[:10]:  # Берем последние 10 из всех сообщений
+                # Конвертируем время в GMT+1 (Польша)
+                poland_time = message.date + timedelta(hours=1)
+                messages.append({
+                    'id': message.id,
+                    'text': message.text,
+                    'date': poland_time.strftime('%H:%M'),
+                    'from_me': message.out,
+                    'sender': 'Вы' if message.out else self._get_dialog_name(dialog)
+                })
 
             # Если есть необработанные сообщения, добавляем диалог
             if pending_messages:
@@ -495,6 +499,9 @@ class TelegramMessageLoaderWeb:
                 if isinstance(dialog.entity, User) and hasattr(dialog.entity, 'username'):
                     username = dialog.entity.username
 
+                # Время первого необработанного сообщения (для сортировки от старого к новому)
+                first_pending_time = pending_messages[0]['date'] if pending_messages else ''
+
                 dialogs_data.append({
                     'dialog_id': dialog.id,
                     'dialog_name': self._get_dialog_name(dialog),
@@ -503,7 +510,8 @@ class TelegramMessageLoaderWeb:
                     'unread_messages': pending_messages,
                     'context': list(reversed(messages)),  # От старых к новым
                     'last_message_date': messages[0]['date'] if messages else '',
-                    'last_your_message_date': last_your_message
+                    'last_your_message_date': last_your_message,
+                    'first_pending_time': first_pending_time  # Для сортировки
                 })
             elif read_messages and last_processed_id > 0:
                 # Диалог был обработан (есть прочитанные сообщения, но нет необработанных)
@@ -513,8 +521,8 @@ class TelegramMessageLoaderWeb:
         print(f"[load_dialogs] Saving scan stats: {dialogs_scanned} dialogs, {total_messages} messages")
         self._save_scan_stats(dialogs_scanned, total_messages)
 
-        # Сортируем по количеству непрочитанных (больше = важнее)
-        dialogs_data.sort(key=lambda x: x['unread_count'], reverse=True)
+        # Сортируем по времени первого необработанного сообщения (от старого к новому)
+        dialogs_data.sort(key=lambda x: x.get('first_pending_time', ''))
 
         print(f"[load_dialogs] Returning {len(dialogs_data)} dialogs with unread messages")
         print(f"[load_dialogs] Stats: {stats}")
