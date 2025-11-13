@@ -173,6 +173,7 @@ async function sendCode() {
 async function verifyCode() {
     const phone = document.getElementById('phone').value.trim();
     const code = document.getElementById('code').value.trim();
+    const password = document.getElementById('password').value.trim();
 
     if (!phone || !code) {
         alert('Заполните все поля!');
@@ -180,10 +181,16 @@ async function verifyCode() {
     }
 
     try {
+        // Отправляем запрос с кодом и паролем (если есть)
+        const requestBody = { phone, code };
+        if (password) {
+            requestBody.password = password;
+        }
+
         const response = await fetch('/api/verify_code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, code })
+            body: JSON.stringify(requestBody)
         });
 
         const data = await response.json();
@@ -191,8 +198,12 @@ async function verifyCode() {
         if (data.success) {
             showMainPanel();
             loadStats();
+        } else if (data.need_password) {
+            // Требуется пароль 2FA
+            document.getElementById('password-input').classList.remove('hidden');
+            alert('⚠️ Требуется пароль двухфакторной аутентификации!\n\nВведите пароль, который вы установили в настройках безопасности Telegram.');
         } else {
-            alert('Неверный код!');
+            alert('Ошибка: ' + (data.error || 'Неверный код!'));
         }
 
     } catch (error) {

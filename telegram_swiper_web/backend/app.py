@@ -202,17 +202,30 @@ def api_verify_code():
         data = request.json
         phone = data.get('phone')
         code = data.get('code')
+        password = data.get('password')  # Опциональный пароль для 2FA
 
         if not phone or not code:
             return jsonify({'error': 'Укажите телефон и код'}), 400
 
         # Авторизуемся в отдельном потоке
-        run_async_in_loader_thread(loader.sign_in(phone, code))
+        if password:
+            # Если есть пароль - используем его для 2FA
+            run_async_in_loader_thread(loader.sign_in(phone, code, password=password))
+        else:
+            # Обычная авторизация
+            run_async_in_loader_thread(loader.sign_in(phone, code))
 
         return jsonify({'success': True})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_msg = str(e)
+        # Проверяем, требуется ли 2FA пароль
+        if 'password is required' in error_msg.lower() or 'two-steps' in error_msg.lower():
+            return jsonify({
+                'error': error_msg,
+                'need_password': True
+            }), 400
+        return jsonify({'error': error_msg}), 500
 
 
 @app.route('/api/dialogs')
