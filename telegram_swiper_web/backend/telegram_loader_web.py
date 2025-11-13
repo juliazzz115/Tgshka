@@ -8,6 +8,7 @@ import sqlite3
 import time
 import threading
 import queue
+import sys
 from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -366,9 +367,29 @@ class TelegramMessageLoaderWeb:
 
             # Шаг 2: Получаем ID последнего обработанного сообщения в диалоге
             last_processed_id = self.get_last_processed_message_id(dialog.id)
-            # Получаем ID последнего прочитанного в Telegram входящего сообщения
-            read_inbox_max_id = dialog.dialog.read_inbox_max_id if hasattr(dialog.dialog, 'read_inbox_max_id') and dialog.dialog.read_inbox_max_id else 0
-            print(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, last_processed_id={last_processed_id}, read_inbox_max_id={read_inbox_max_id}")
+
+            # Получаем количество непрочитанных сообщений в диалоге
+            unread_count = dialog.unread_count if hasattr(dialog, 'unread_count') else 0
+
+            # Определяем ID последнего прочитанного сообщения через unread_count
+            # Собираем только входящие сообщения для определения границы
+            incoming_messages = [msg for msg in all_messages if not msg.out]
+
+            # Если есть непрочитанные, то последние unread_count входящих сообщений - непрочитанные
+            # Остальные входящие - прочитанные
+            if unread_count > 0 and len(incoming_messages) > unread_count:
+                # Последнее прочитанное сообщение - это (количество входящих - количество непрочитанных)-ое сообщение
+                last_read_index = len(incoming_messages) - unread_count - 1
+                read_inbox_max_id = incoming_messages[last_read_index].id if last_read_index >= 0 else 0
+            elif unread_count == 0 and incoming_messages:
+                # Все входящие сообщения прочитаны - берем ID последнего
+                read_inbox_max_id = incoming_messages[0].id  # Первое в списке = последнее по времени
+            else:
+                # Все непрочитанные или нет входящих
+                read_inbox_max_id = 0
+
+            sys.stderr.write(f"[load_dialogs] Dialog {dialog.name}: {len(all_messages)} messages, {len(incoming_messages)} incoming, unread_count={unread_count}, last_processed_id={last_processed_id}, read_inbox_max_id={read_inbox_max_id}\n")
+            sys.stderr.flush()
 
             # Шаг 3: Фильтруем сообщения - показываем только новые (с id > last_processed_id)
             messages = []
@@ -377,17 +398,12 @@ class TelegramMessageLoaderWeb:
             for message in all_messages:
                 # Показываем только ПРОЧИТАННЫЕ в Telegram входящие сообщения, которые еще не обработаны в приложении
                 # not message.out - входящее сообщение (не от меня)
-                # message.id <= read_inbox_max_id - прочитано в Telegram
+                # message.id <= read_inbox_max_id - прочитано в Telegram (используем наш вычисленный read_inbox_max_id)
                 # message.id > last_processed_id - еще не обработано в приложении
 
-                # Детальное логирование для отладки
-                if not message.out:
-                    is_read = message.id <= read_inbox_max_id
-                    is_new = message.id > last_processed_id
-                    print(f"  Message ID={message.id}: read={is_read} (id<={read_inbox_max_id}), new={is_new} (id>{last_processed_id}), text={message.text[:30] if message.text else 'None'}...")
-
                 if not message.out and message.id <= read_inbox_max_id and message.id > last_processed_id:
-                    print(f"  -> Adding to pending_messages")
+                    sys.stderr.write(f"  -> Adding message ID={message.id} (read, not processed yet)\n")
+                    sys.stderr.flush()
                     pending_messages.append({
                         'id': message.id,
                         'text': message.text,
