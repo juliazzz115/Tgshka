@@ -142,7 +142,7 @@ def run_async_in_loader_thread(coro):
     future = asyncio.run_coroutine_threadsafe(coro, loader_loop)
 
     try:
-        return future.result(timeout=30)  # Таймаут 30 секунд
+        return future.result(timeout=60)  # Таймаут 60 секунд
     except Exception as e:
         raise e
 

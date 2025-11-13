@@ -328,8 +328,8 @@ class TelegramMessageLoaderWeb:
 
         print("[load_dialogs] Starting to iterate dialogs...")
 
-        # Получаем все диалоги (ограничиваем 100 для начала)
-        async for dialog in self.client.iter_dialogs(limit=100):
+        # Получаем диалоги (ограничиваем 30 для быстрой работы)
+        async for dialog in self.client.iter_dialogs(limit=30):
             dialogs_scanned += 1
             if dialogs_scanned % 10 == 0:
                 print(f"[load_dialogs] Processed {dialogs_scanned} dialogs...")
@@ -350,6 +350,7 @@ class TelegramMessageLoaderWeb:
                     all_messages.append(message)
 
             if not all_messages:
+                print(f"[load_dialogs] Dialog {dialog.name}: no text messages, skipping")
                 continue
 
             # Шаг 2: Получаем ID последнего обработанного сообщения в диалоге
