@@ -89,7 +89,15 @@ python3 app.py
 **Как:**
 1. Создайте аккаунт: https://railway.app
 2. New Project → Deploy from GitHub
-3. Готово! Получаете URL типа: `https://your-app.railway.app`
+3. Выберите репозиторий `Tgshka`
+4. Railway автоматически обнаружит конфигурацию
+5. Дождитесь завершения деплоя (2-3 минуты)
+6. Готово! Получаете URL типа: `https://your-app.railway.app`
+
+**Важно:** Все конфигурационные файлы уже в корне:
+- `nixpacks.toml` - настройки сборки
+- `railway.toml` - настройки деплоя
+- `Procfile` - команда запуска
 
 ### Render.com
 
