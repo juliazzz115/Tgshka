@@ -1,0 +1,10 @@
+# Telegram API
+telethon>=1.31.0
+
+# Async support
+asyncio
+
+# Database
+# sqlite3 встроен в Python
+
+# GUI (tkinter встроен в Python)
