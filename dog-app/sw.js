@@ -1,5 +1,13 @@
-const CACHE = "dogcare-v1";
-const ASSETS = ["./index.html", "./manifest.json"];
+const CACHE = "dogcare-v2";
+const ASSETS = [
+  "./index.html",
+  "./manifest.json",
+  "./firebase-config.js",
+  "./i18n/base.js",
+  "./i18n/lang-west.js",
+  "./i18n/lang-east.js",
+  "./i18n/lang-north.js"
+];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -15,7 +23,7 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  if (e.request.method !== "GET") return;
+  if (e.request.method !== "GET" || !e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     fetch(e.request)
       .then(res => {
