@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<link rel="manifest" href="manifest.json">
+<title>ДогКеа — забота о вашей собаке</title>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-light: #eef2ff;
+    --danger: #dc2626;
+    --danger-light: #fef2f2;
+    --warn: #d97706;
+    --warn-light: #fffbeb;
+    --ok: #16a34a;
+    --ok-light: #f0fdf4;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --radius: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app { max-width: 520px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+  /* ---------- Auth ---------- */
+  .auth-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px 24px; }
+  .auth-logo { text-align: center; margin-bottom: 28px; }
+  .auth-logo .emoji { font-size: 64px; }
+  .auth-logo h1 { font-size: 28px; margin-top: 8px; }
+  .auth-logo p { color: var(--muted); margin-top: 4px; font-size: 15px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  }
+  label.field { display: block; margin-bottom: 14px; }
+  label.field span { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  input, select, textarea {
+    width: 100%; padding: 12px 14px; font-size: 16px;
+    border: 1px solid var(--border); border-radius: 12px; background: #fff; color: var(--text);
+    outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+  .btn {
+    display: block; width: 100%; padding: 14px; font-size: 16px; font-weight: 600;
+    border: none; border-radius: 12px; cursor: pointer; text-align: center;
+    background: var(--primary); color: #fff;
+  }
+  .btn.secondary { background: var(--primary-light); color: var(--primary); }
+  .btn.small { width: auto; display: inline-block; padding: 8px 14px; font-size: 14px; }
+  .btn.danger { background: var(--danger-light); color: var(--danger); }
+  .link-btn { background: none; border: none; color: var(--primary); font-size: 15px; cursor: pointer; padding: 12px; width: 100%; }
+  .error-msg { color: var(--danger); font-size: 14px; margin-bottom: 10px; display: none; }
+
+  /* ---------- Layout ---------- */
+  header.topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 14px 18px; padding-top: calc(14px + env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header.topbar h2 { font-size: 20px; }
+  main.content { flex: 1; padding: 16px; padding-bottom: 90px; }
+  nav.tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    max-width: 520px; margin: 0 auto;
+    background: var(--card); border-top: 1px solid var(--border);
+    display: flex; padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav.tabbar button {
+    flex: 1; background: none; border: none; padding: 10px 4px 8px;
+    font-size: 11px; color: var(--muted); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  nav.tabbar button .ico { font-size: 22px; }
+  nav.tabbar button.active { color: var(--primary); font-weight: 600; }
+
+  .section-title { font-size: 17px; font-weight: 700; margin: 18px 0 10px; }
+  .empty { text-align: center; color: var(--muted); padding: 36px 16px; }
+  .empty .emoji { font-size: 48px; display: block; margin-bottom: 10px; }
+
+  /* ---------- Pets ---------- */
+  .pet-card { display: flex; gap: 14px; align-items: center; }
+  .pet-avatar {
+    width: 56px; height: 56px; border-radius: 50%; background: var(--primary-light);
+    display: flex; align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0;
+  }
+  .pet-card .info { flex: 1; min-width: 0; }
+  .pet-card .name { font-weight: 700; font-size: 17px; }
+  .pet-card .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  /* ---------- Rows ---------- */
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .row + .row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .row .main { flex: 1; min-width: 0; }
+  .row .title { font-weight: 600; font-size: 15px; }
+  .row .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .amount { font-weight: 700; font-size: 15px; white-space: nowrap; }
+
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge.ok { background: var(--ok-light); color: var(--ok); }
+  .badge.warn { background: var(--warn-light); color: var(--warn); }
+  .badge.danger { background: var(--danger-light); color: var(--danger); }
+  .badge.info { background: var(--primary-light); color: var(--primary); }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .stat-card .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .stat-card .value { font-size: 22px; font-weight: 800; margin-top: 4px; }
+
+  .cat-bar { height: 8px; border-radius: 4px; background: var(--primary); margin-top: 4px; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .modal {
+    background: var(--card); width: 100%; max-width: 520px;
+    border-radius: 20px 20px 0 0; padding: 20px 18px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    max-height: 88vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 19px; margin-bottom: 16px; }
+  .modal .actions { display: flex; gap: 10px; margin-top: 8px; }
+  .hidden { display: none !important; }
+
+  /* ---------- Vaccine guide ---------- */
+  details.vax-guide { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; }
+  details.vax-guide summary {
+    padding: 14px 16px; font-weight: 600; cursor: pointer; list-style: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  details.vax-guide summary::after { content: "›"; transform: rotate(90deg); color: var(--muted); font-size: 18px; }
+  details.vax-guide[open] summary::after { transform: rotate(-90deg); }
+  details.vax-guide .body { padding: 0 16px 14px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+  details.vax-guide .body b { color: var(--text); }
+  .notice {
+    background: var(--primary-light); border-radius: var(--radius);
+    padding: 14px 16px; font-size: 14px; line-height: 1.5; margin-bottom: 14px;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+"use strict";
+
+/* =====================================================
+   Справочник прививок для собак в ЕС
+   (рекомендации WSAVA + требования Регламента ЕС 576/2013)
+   ===================================================== */
+const EU_VACCINES = [
+  {
+    id: "rabies",
+    name: "Бешенство (Rabies)",
+    required: true,
+    tag: "Обязательна в ЕС",
+    firstWeeks: 12,
+    puppySeries: [12],
+    boosterMonths: 12,
+    note: "Ревакцинация каждые 1–3 года (по инструкции вакцины)",
+    desc: "Единственная прививка, юридически обязательная для поездок между странами ЕС (Регламент ЕС № 576/2013). Ставится не раньше 12 недель. Перед вакцинацией собака должна быть чипирована. После первой прививки нужно подождать 21 день, прежде чем пересекать границу. Ревакцинация — каждые 1–3 года в зависимости от вакцины."
+  },
+  {
+    id: "dhp",
+    name: "Комплексная DHP (чума, гепатит, парвовирус)",
+    required: true,
+    tag: "Базовая (core)",
+    firstWeeks: 8,
+    puppySeries: [8, 12, 16],
+    boosterMonths: 12,
+    note: "После ревакцинации в 1 год — каждые 3 года",
+    desc: "Базовые (core) вакцины по рекомендациям WSAVA: чума плотоядных (Distemper), инфекционный гепатит (Adenovirus), парвовирусный энтерит (Parvovirus). Щенкам серия в 8, 12 и 16 недель, ревакцинация в 12 месяцев, далее каждые 3 года."
+  },
+  {
+    id: "lepto",
+    name: "Лептоспироз (Leptospirosis)",
+    required: true,
+    tag: "Рекомендована в ЕС",
+    firstWeeks: 8,
+    puppySeries: [8, 12],
+    boosterMonths: 12,
+    note: "Ежегодная ревакцинация",
+    desc: "В большинстве стран ЕС считается стандартной из-за распространённости лептоспир. Две дозы щенку с интервалом 4 недели, затем ежегодная ревакцинация. Часто входит в комплексные вакцины (DHPPi+L)."
+  },
+  {
+    id: "pi",
+    name: "Парагрипп (Parainfluenza)",
+    required: false,
+    tag: "Дополнительная",
+    firstWeeks: 8,
+    puppySeries: [8, 12],
+    boosterMonths: 12,
+    note: "Ежегодно, обычно в составе комплексной вакцины",
+    desc: "Компонент «вольерного кашля». Рекомендуется собакам, которые контактируют с другими собаками (выставки, передержки, груминг). Обычно входит в комплекс DHPPi."
+  },
+  {
+    id: "kc",
+    name: "Бордетеллёз / вольерный кашель (Bordetella)",
+    required: false,
+    tag: "Дополнительная",
+    firstWeeks: 8,
+    puppySeries: [8],
+    boosterMonths: 12,
+    note: "Ежегодно при риске контакта",
+    desc: "Рекомендуется перед передержкой, выставками, зоогостиницами. Многие передержки в ЕС требуют эту прививку. Ревакцинация ежегодно."
+  },
+  {
+    id: "leish",
+    name: "Лейшманиоз (Leishmania)",
+    required: false,
+    tag: "Юг ЕС",
+    firstWeeks: 26,
+    puppySeries: [26],
+    boosterMonths: 12,
+    note: "Ежегодно в эндемичных регионах",
+    desc: "Актуальна для юга Европы: Испания, Португалия, Италия, юг Франции, Греция. Ставится с 6 месяцев, ревакцинация ежегодно. Если едете на юг ЕС в отпуск с собакой — обсудите с ветеринаром."
+  }
+];
+
+const EU_TRAVEL_RULES = [
+  "🪪 Микрочип (ISO 11784/11785) — ставится ДО прививки от бешенства.",
+  "💉 Действующая прививка от бешенства (не раньше 12 недель).",
+  "⏳ После первой прививки от бешенства подождите 21 день перед поездкой.",
+  "📘 Паспорт питомца ЕС (EU Pet Passport), оформляется у ветеринара.",
+  "🐛 Для Финляндии, Ирландии, Мальты и Норвегии — обработка от эхинококка за 24–120 ч до въезда.",
+  "🐶 Щенков младше 15 недель большинство стран ЕС не впускают."
+];
+
+const EXPENSE_CATEGORIES = [
+  { id: "food",     name: "Корм",       emoji: "🍖" },
+  { id: "vet",      name: "Ветеринар",  emoji: "🩺" },
+  { id: "meds",     name: "Лекарства",  emoji: "💊" },
+  { id: "groom",    name: "Груминг",    emoji: "✂️" },
+  { id: "toys",     name: "Игрушки",    emoji: "🧸" },
+  { id: "gear",     name: "Амуниция",   emoji: "🦮" },
+  { id: "insurance",name: "Страховка",  emoji: "🛡️" },
+  { id: "other",    name: "Другое",     emoji: "📦" }
+];
+
+const AVATARS = ["🐕","🐩","🦮","🐕‍🦺","🐶","🐾"];
+
+/* ===================== Хранилище ===================== */
+const LS_USERS = "dogcare_users";
+const LS_SESSION = "dogcare_session";
+
+function loadUsers() { return JSON.parse(localStorage.getItem(LS_USERS) || "{}"); }
+function saveUsers(u) { localStorage.setItem(LS_USERS, JSON.stringify(u)); }
+
+let currentUser = null; // email
+let state = null;       // данные текущего пользователя
+let activeTab = "pets";
+
+function dataKey(email) { return "dogcare_data_" + email; }
+function loadState() {
+  const raw = localStorage.getItem(dataKey(currentUser));
+  state = raw ? JSON.parse(raw) : { pets: [], expenses: [], vaccinations: [] };
+}
+function saveState() { localStorage.setItem(dataKey(currentUser), JSON.stringify(state)); }
+
+async function hash(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* ===================== Утилиты ===================== */
+const $ = sel => document.querySelector(sel);
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+function fmtDate(iso) {
+  if (!iso) return "";
+  return new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+}
+function fmtMoney(n) { return (Math.round(n * 100) / 100).toLocaleString("ru-RU") + " €"; }
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function addDays(iso, days) {
+  const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function addMonths(iso, months) {
+  const d = new Date(iso + "T00:00:00"); d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+function daysUntil(iso) {
+  const ms = new Date(iso + "T00:00:00") - new Date(todayISO() + "T00:00:00");
+  return Math.round(ms / 86400000);
+}
+function petAge(birth) {
+  if (!birth) return "";
+  const b = new Date(birth + "T00:00:00"), now = new Date();
+  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+  if (now.getDate() < b.getDate()) months--;
+  if (months < 0) months = 0;
+  const y = Math.floor(months / 12), m = months % 12;
+  if (y === 0) return m + " мес.";
+  return y + " " + (y === 1 ? "год" : y < 5 ? "года" : "лет") + (m ? " " + m + " мес." : "");
+}
+function petById(id) { return state.pets.find(p => p.id === id); }
+function catById(id) { return EXPENSE_CATEGORIES.find(c => c.id === id) || EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1]; }
+function vaxById(id) { return EU_VACCINES.find(v => v.id === id); }
+
+/* ===================== Экран входа ===================== */
+function renderAuth(mode = "login") {
+  const isReg = mode === "register";
+  $("#app").innerHTML = `
+    <div class="auth-wrap">
+      <div class="auth-logo">
+        <span class="emoji">🐕</span>
+        <h1>ДогКеа</h1>
+        <p>Здоровье, прививки и расходы вашей собаки</p>
+      </div>
+      <div class="card">
+        <p class="error-msg" id="auth-error"></p>
+        ${isReg ? `
+        <label class="field"><span>Ваше имя</span>
+          <input id="reg-name" type="text" placeholder="Юлия" autocomplete="name">
+        </label>` : ""}
+        <label class="field"><span>Email</span>
+          <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email">
+        </label>
+        <label class="field"><span>Пароль</span>
+          <input id="auth-pass" type="password" placeholder="••••••••" autocomplete="${isReg ? "new-password" : "current-password"}">
+        </label>
+        <button class="btn" id="auth-submit">${isReg ? "Создать аккаунт" : "Войти"}</button>
+      </div>
+      <button class="link-btn" id="auth-switch">
+        ${isReg ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Зарегистрироваться"}
+      </button>
+    </div>`;
+
+  $("#auth-switch").onclick = () => renderAuth(isReg ? "login" : "register");
+  $("#auth-submit").onclick = async () => {
+    const email = $("#auth-email").value.trim().toLowerCase();
+    const pass = $("#auth-pass").value;
+    const err = $("#auth-error");
+    const showErr = m => { err.textContent = m; err.style.display = "block"; };
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) return showErr("Введите корректный email.");
+    if (pass.length < 4) return showErr("Пароль должен быть не короче 4 символов.");
+
+    const users = loadUsers();
+    if (isReg) {
+      const name = $("#reg-name").value.trim();
+      if (!name) return showErr("Введите ваше имя.");
+      if (users[email]) return showErr("Пользователь с таким email уже существует.");
+      users[email] = { name, passHash: await hash(pass), created: todayISO() };
+      saveUsers(users);
+    } else {
+      const u = users[email];
+      if (!u || u.passHash !== await hash(pass)) return showErr("Неверный email или пароль.");
+    }
+    localStorage.setItem(LS_SESSION, email);
+    currentUser = email;
+    loadState();
+    renderApp();
+  };
+}
+
+/* ===================== Основной каркас ===================== */
+const TABS = [
+  { id: "pets",     name: "Питомцы",  ico: "🐾" },
+  { id: "expenses", name: "Затраты",  ico: "💶" },
+  { id: "vax",      name: "Прививки", ico: "💉" },
+  { id: "profile",  name: "Профиль",  ico: "👤" }
+];
+
+function renderApp() {
+  const tab = TABS.find(t => t.id === activeTab);
+  $("#app").innerHTML = `
+    <header class="topbar">
+      <h2>${tab.ico} ${tab.name}</h2>
+      <span id="topbar-extra"></span>
+    </header>
+    <main class="content" id="content"></main>
+    <nav class="tabbar">
+      ${TABS.map(t => `
+        <button data-tab="${t.id}" class="${t.id === activeTab ? "active" : ""}">
+          <span class="ico">${t.ico}</span>${t.name}
+        </button>`).join("")}
+    </nav>
+    <div id="modal-root"></div>`;
+
+  document.querySelectorAll("nav.tabbar button").forEach(b => {
+    b.onclick = () => { activeTab = b.dataset.tab; renderApp(); };
+  });
+
+  ({ pets: renderPets, expenses: renderExpenses, vax: renderVax, profile: renderProfile }[activeTab])();
+}
+
+/* ===================== Модальные окна ===================== */
+function openModal(html, onMount) {
+  $("#modal-root").innerHTML = `
+    <div class="modal-backdrop" id="modal-backdrop">
+      <div class="modal">${html}</div>
+    </div>`;
+  $("#modal-backdrop").addEventListener("click", e => { if (e.target.id === "modal-backdrop") closeModal(); });
+  if (onMount) onMount();
+}
+function closeModal() { $("#modal-root").innerHTML = ""; }
+
+/* ===================== Питомцы ===================== */
+function renderPets() {
+  const c = $("#content");
+  const list = state.pets.map(p => `
+    <div class="card pet-card" data-id="${p.id}">
+      <div class="pet-avatar">${p.avatar}</div>
+      <div class="info">
+        <div class="name">${esc(p.name)}</div>
+        <div class="meta">${esc(p.breed || "порода не указана")} · ${petAge(p.birth) || "возраст не указан"}${p.weight ? " · " + p.weight + " кг" : ""}</div>
+        ${p.chip ? `<div class="meta">Чип: ${esc(p.chip)}</div>` : `<div class="meta"><span class="badge warn">Нет чипа — обязателен для поездок по ЕС</span></div>`}
+      </div>
+      <span style="color:var(--muted)">›</span>
+    </div>`).join("");
+
+  c.innerHTML = `
+    ${state.pets.length === 0 ? `
+      <div class="empty">
+        <span class="emoji">🐶</span>
+        Добавьте вашего первого питомца,<br>чтобы вести расходы и прививки.
+      </div>` : list}
+    <button class="btn" id="add-pet">+ Добавить питомца</button>`;
+
+  $("#add-pet").onclick = () => petForm();
+  document.querySelectorAll(".pet-card").forEach(el => {
+    el.onclick = () => petForm(petById(el.dataset.id));
+  });
+}
+
+function petForm(pet) {
+  const isEdit = !!pet;
+  openModal(`
+    <h3>${isEdit ? "Питомец: " + esc(pet.name) : "Новый питомец"}</h3>
+    <label class="field"><span>Аватар</span>
+      <select id="p-avatar">${AVATARS.map(a => `<option ${pet?.avatar === a ? "selected" : ""}>${a}</option>`).join("")}</select>
+    </label>
+    <label class="field"><span>Кличка *</span><input id="p-name" value="${esc(pet?.name || "")}" placeholder="Рекс"></label>
+    <label class="field"><span>Порода</span><input id="p-breed" value="${esc(pet?.breed || "")}" placeholder="Лабрадор"></label>
+    <label class="field"><span>Пол</span>
+      <select id="p-sex">
+        <option value="m" ${pet?.sex === "m" ? "selected" : ""}>Кобель</option>
+        <option value="f" ${pet?.sex === "f" ? "selected" : ""}>Сука</option>
+      </select>
+    </label>
+    <label class="field"><span>Дата рождения</span><input id="p-birth" type="date" value="${pet?.birth || ""}" max="${todayISO()}"></label>
+    <label class="field"><span>Вес, кг</span><input id="p-weight" type="number" step="0.1" min="0" value="${pet?.weight ?? ""}"></label>
+    <label class="field"><span>Номер микрочипа</span><input id="p-chip" value="${esc(pet?.chip || "")}" placeholder="15 цифр (ISO)"></label>
+    <div class="actions">
+      ${isEdit ? `<button class="btn danger" id="p-delete">Удалить</button>` : ""}
+      <button class="btn secondary" id="p-cancel">Отмена</button>
+      <button class="btn" id="p-save">Сохранить</button>
+    </div>`, () => {
+    $("#p-cancel").onclick = closeModal;
+    if (isEdit) $("#p-delete").onclick = () => {
+      if (!confirm(`Удалить питомца «${pet.name}» вместе с расходами и прививками?`)) return;
+      state.pets = state.pets.filter(p => p.id !== pet.id);
+      state.expenses = state.expenses.filter(e => e.petId !== pet.id);
+      state.vaccinations = state.vaccinations.filter(v => v.petId !== pet.id);
+      saveState(); closeModal(); renderApp();
+    };
+    $("#p-save").onclick = () => {
+      const name = $("#p-name").value.trim();
+      if (!name) { alert("Введите кличку."); return; }
+      const data = {
+        avatar: $("#p-avatar").value, name,
+        breed: $("#p-breed").value.trim(),
+        sex: $("#p-sex").value,
+        birth: $("#p-birth").value,
+        weight: $("#p-weight").value ? parseFloat($("#p-weight").value) : null,
+        chip: $("#p-chip").value.trim()
+      };
+      if (isEdit) Object.assign(pet, data);
+      else {
+        const newPet = { id: uid(), ...data };
+        state.pets.push(newPet);
+        saveState(); closeModal();
+        if (newPet.birth && confirm("Создать план прививок по стандартам ЕС для " + newPet.name + "?")) {
+          generateEUSchedule(newPet);
+          activeTab = "vax";
+        }
+        renderApp();
+        return;
+      }
+      saveState(); closeModal(); renderApp();
+    };
+  });
+}
+
+/* ===================== Затраты ===================== */
+function renderExpenses() {
+  const c = $("#content");
+  const now = new Date();
+  const monthKey = now.toISOString().slice(0, 7);
+  const monthExp = state.expenses.filter(e => e.date.startsWith(monthKey));
+  const monthTotal = monthExp.reduce((s, e) => s + e.amount, 0);
+  const allTotal = state.expenses.reduce((s, e) => s + e.amount, 0);
+
+  const byCat = {};
+  monthExp.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; });
+  const maxCat = Math.max(1, ...Object.values(byCat));
+  const catStats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([id, sum]) => {
+    const cat = catById(id);
+    return `<div style="margin-bottom:10px">
+      <div class="row" style="border:none;padding:0;margin:0">
+        <span style="font-size:14px">${cat.emoji} ${cat.name}</span>
+        <span class="amount" style="font-size:14px">${fmtMoney(sum)}</span>
+      </div>
+      <div class="cat-bar" style="width:${Math.round(sum / maxCat * 100)}%"></div>
+    </div>`;
+  }).join("");
+
+  const sorted = [...state.expenses].sort((a, b) => b.date.localeCompare(a.date));
+  const rows = sorted.slice(0, 50).map(e => {
+    const cat = catById(e.cat);
+    const pet = petById(e.petId);
+    return `<div class="row" data-id="${e.id}">
+      <div class="main">
+        <div class="title">${cat.emoji} ${cat.name}${e.note ? " — " + esc(e.note) : ""}</div>
+        <div class="sub">${fmtDate(e.date)}${pet ? " · " + pet.avatar + " " + esc(pet.name) : ""}</div>
+      </div>
+      <span class="amount">${fmtMoney(e.amount)}</span>
+    </div>`;
+  }).join("");
+
+  c.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="label">За этот месяц</div><div class="value">${fmtMoney(monthTotal)}</div></div>
+      <div class="stat-card"><div class="label">Всего</div><div class="value">${fmtMoney(allTotal)}</div></div>
+    </div>
+    ${catStats ? `<div class="card"><div class="section-title" style="margin-top:0">По категориям (месяц)</div>${catStats}</div>` : ""}
+    <button class="btn" id="add-exp">+ Добавить расход</button>
+    <div class="section-title">История</div>
+    ${rows ? `<div class="card">${rows}</div>` : `<div class="empty"><span class="emoji">💶</span>Расходов пока нет.</div>`}`;
+
+  $("#add-exp").onclick = () => expenseForm();
+  document.querySelectorAll(".row[data-id]").forEach(el => {
+    el.onclick = () => expenseForm(state.expenses.find(e => e.id === el.dataset.id));
+  });
+}
+
+function expenseForm(exp) {
+  const isEdit = !!exp;
+  openModal(`
+    <h3>${isEdit ? "Изменить расход" : "Новый расход"}</h3>
+    <label class="field"><span>Сумма, € *</span>
+      <input id="e-amount" type="number" step="0.01" min="0" inputmode="decimal" value="${exp?.amount ?? ""}" placeholder="0.00">
+    </label>
+    <label class="field"><span>Категория</span>
+      <select id="e-cat">${EXPENSE_CATEGORIES.map(cat =>
+        `<option value="${cat.id}" ${exp?.cat === cat.id ? "selected" : ""}>${cat.emoji} ${cat.name}</option>`).join("")}
+      </select>
+    </label>
+    <label class="field"><span>Питомец</span>
+      <select id="e-pet">
+        <option value="">— общий расход —</option>
+        ${state.pets.map(p => `<option value="${p.id}" ${exp?.petId === p.id ? "selected" : ""}>${p.avatar} ${esc(p.name)}</option>`).join("")}
+      </select>
+    </label>
+    <label class="field"><span>Дата</span><input id="e-date" type="date" value="${exp?.date || todayISO()}"></label>
+    <label class="field"><span>Заметка</span><input id="e-note" value="${esc(exp?.note || "")}" placeholder="Сухой корм 12 кг"></label>
+    <div class="actions">
+      ${isEdit ? `<button class="btn danger" id="e-delete">Удалить</button>` : ""}
+      <button class="btn secondary" id="e-cancel">Отмена</button>
+      <button class="btn" id="e-save">Сохранить</button>
+    </div>`, () => {
+    $("#e-cancel").onclick = closeModal;
+    if (isEdit) $("#e-delete").onclick = () => {
+      state.expenses = state.expenses.filter(x => x.id !== exp.id);
+      saveState(); closeModal(); renderApp();
+    };
+    $("#e-save").onclick = () => {
+      const amount = parseFloat($("#e-amount").value);
+      if (!(amount > 0)) { alert("Введите сумму."); return; }
+      const data = {
+        amount, cat: $("#e-cat").value, petId: $("#e-pet").value || null,
+        date: $("#e-date").value || todayISO(), note: $("#e-note").value.trim()
+      };
+      if (isEdit) Object.assign(exp, data);
+      else state.expenses.push({ id: uid(), ...data });
+      saveState(); closeModal(); renderApp();
+    };
+  });
+}
+
+/* ===================== Прививки ===================== */
+function generateEUSchedule(pet) {
+  const birth = pet.birth;
+  if (!birth) return;
+  EU_VACCINES.forEach(v => {
+    if (!v.required && v.id !== "pi") return; // авто-план: только базовые + парагрипп
+    v.puppySeries.forEach(weeks => {
+      let due = addDays(birth, weeks * 7);
+      if (daysUntil(due) < 0) due = todayISO(); // просроченные щенячьи — «как можно скорее»
+      const dup = state.vaccinations.find(x => x.petId === pet.id && x.vaxId === v.id && x.due === due && !x.done);
+      if (!dup) state.vaccinations.push({ id: uid(), petId: pet.id, vaxId: v.id, due, done: false, doneDate: null });
+    });
+  });
+  saveState();
+}
+
+function renderVax() {
+  const c = $("#content");
+  const items = state.vaccinations
+    .filter(v => petById(v.petId))
+    .sort((a, b) => (a.done === b.done ? a.due.localeCompare(b.due) : a.done - b.done));
+
+  const upcoming = items.filter(v => !v.done);
+  const done = items.filter(v => v.done).sort((a, b) => b.doneDate.localeCompare(a.doneDate));
+
+  const renderItem = v => {
+    const vax = vaxById(v.vaxId);
+    const pet = petById(v.petId);
+    const d = daysUntil(v.due);
+    let badge;
+    if (v.done) badge = `<span class="badge ok">✓ ${fmtDate(v.doneDate)}</span>`;
+    else if (d < 0) badge = `<span class="badge danger">Просрочено ${-d} дн.</span>`;
+    else if (d === 0) badge = `<span class="badge warn">Сегодня!</span>`;
+    else if (d <= 14) badge = `<span class="badge warn">Через ${d} дн.</span>`;
+    else badge = `<span class="badge info">${fmtDate(v.due)}</span>`;
+    return `<div class="row" data-vid="${v.id}">
+      <div class="main">
+        <div class="title">${esc(vax ? vax.name : "Прививка")}</div>
+        <div class="sub">${pet.avatar} ${esc(pet.name)}${!v.done ? " · план: " + fmtDate(v.due) : ""}</div>
+      </div>
+      ${badge}
+    </div>`;
+  };
+
+  c.innerHTML = `
+    <div class="notice">
+      🇪🇺 <b>Поездки с собакой по ЕС:</b><br>
+      ${EU_TRAVEL_RULES.map(r => "• " + r).join("<br>")}
+    </div>
+    ${state.pets.length === 0 ? `<div class="empty"><span class="emoji">💉</span>Сначала добавьте питомца во вкладке «Питомцы».</div>` : `
+      <button class="btn" id="add-vax">+ Добавить прививку / напоминание</button>
+      <button class="btn secondary" id="gen-vax" style="margin-top:10px">📋 Сгенерировать план прививок ЕС</button>
+      <div class="section-title">Предстоящие</div>
+      ${upcoming.length ? `<div class="card">${upcoming.map(renderItem).join("")}</div>`
+        : `<div class="empty">Нет запланированных прививок.</div>`}
+      ${done.length ? `<div class="section-title">Выполненные</div><div class="card">${done.map(renderItem).join("")}</div>` : ""}
+    `}
+    <div class="section-title">Справочник: прививки для собак в ЕС</div>
+    ${EU_VACCINES.map(v => `
+      <details class="vax-guide">
+        <summary>${esc(v.name)} <span class="badge ${v.required ? "danger" : "info"}" style="margin-left:auto">${v.tag}</span></summary>
+        <div class="body">${esc(v.desc)}<br><br><b>Схема:</b> первая — с ${v.firstWeeks} недель${v.puppySeries.length > 1 ? " (серия: " + v.puppySeries.join(", ") + " нед.)" : ""}. ${esc(v.note)}.</div>
+      </details>`).join("")}
+    <p style="color:var(--muted);font-size:12px;margin-top:10px">
+      Справочник основан на рекомендациях WSAVA и Регламенте ЕС № 576/2013. Точную схему всегда согласуйте с вашим ветеринаром.
+    </p>`;
+
+  if ($("#add-vax")) $("#add-vax").onclick = () => vaxForm();
+  if ($("#gen-vax")) $("#gen-vax").onclick = () => {
+    const withBirth = state.pets.filter(p => p.birth);
+    if (!withBirth.length) { alert("Укажите дату рождения питомца, чтобы построить план."); return; }
+    withBirth.forEach(generateEUSchedule);
+    renderApp();
+  };
+  document.querySelectorAll(".row[data-vid]").forEach(el => {
+    el.onclick = () => vaxForm(state.vaccinations.find(v => v.id === el.dataset.vid));
+  });
+}
+
+function vaxForm(rec) {
+  const isEdit = !!rec;
+  openModal(`
+    <h3>${isEdit ? "Прививка" : "Новая прививка"}</h3>
+    <label class="field"><span>Питомец *</span>
+      <select id="v-pet">${state.pets.map(p =>
+        `<option value="${p.id}" ${rec?.petId === p.id ? "selected" : ""}>${p.avatar} ${esc(p.name)}</option>`).join("")}
+      </select>
+    </label>
+    <label class="field"><span>Вакцина</span>
+      <select id="v-vax">${EU_VACCINES.map(v =>
+        `<option value="${v.id}" ${rec?.vaxId === v.id ? "selected" : ""}>${esc(v.name)}</option>`).join("")}
+      </select>
+    </label>
+    <label class="field"><span>Плановая дата *</span><input id="v-due" type="date" value="${rec?.due || todayISO()}"></label>
+    <div class="actions">
+      ${isEdit && !rec.done ? `<button class="btn" id="v-done" style="background:var(--ok)">✓ Выполнена</button>` : ""}
+    </div>
+    <div class="actions">
+      ${isEdit ? `<button class="btn danger" id="v-delete">Удалить</button>` : ""}
+      <button class="btn secondary" id="v-cancel">Отмена</button>
+      <button class="btn" id="v-save">Сохранить</button>
+    </div>`, () => {
+    $("#v-cancel").onclick = closeModal;
+    if (isEdit) {
+      $("#v-delete").onclick = () => {
+        state.vaccinations = state.vaccinations.filter(x => x.id !== rec.id);
+        saveState(); closeModal(); renderApp();
+      };
+      const doneBtn = $("#v-done");
+      if (doneBtn) doneBtn.onclick = () => {
+        rec.done = true;
+        rec.doneDate = todayISO();
+        const vax = vaxById(rec.vaxId);
+        if (vax?.boosterMonths) {
+          const nextDue = addMonths(todayISO(), vax.boosterMonths);
+          state.vaccinations.push({ id: uid(), petId: rec.petId, vaxId: rec.vaxId, due: nextDue, done: false, doneDate: null });
+          alert("Отлично! Напоминание о ревакцинации создано на " + fmtDate(nextDue) + ".");
+        }
+        saveState(); closeModal(); renderApp();
+      };
+    }
+    $("#v-save").onclick = () => {
+      const petId = $("#v-pet").value;
+      const due = $("#v-due").value;
+      if (!petId || !due) { alert("Заполните питомца и дату."); return; }
+      const data = { petId, vaxId: $("#v-vax").value, due };
+      if (isEdit) Object.assign(rec, data);
+      else state.vaccinations.push({ id: uid(), ...data, done: false, doneDate: null });
+      saveState(); closeModal(); renderApp();
+    };
+  });
+}
+
+/* ===================== Профиль ===================== */
+function renderProfile() {
+  const users = loadUsers();
+  const u = users[currentUser];
+  const overdue = state.vaccinations.filter(v => !v.done && daysUntil(v.due) < 0 && petById(v.petId)).length;
+  const upcoming14 = state.vaccinations.filter(v => !v.done && daysUntil(v.due) >= 0 && daysUntil(v.due) <= 14 && petById(v.petId)).length;
+
+  $("#content").innerHTML = `
+    <div class="card" style="text-align:center;padding:24px">
+      <div style="font-size:52px">👤</div>
+      <div style="font-weight:800;font-size:20px;margin-top:6px">${esc(u.name)}</div>
+      <div style="color:var(--muted);font-size:14px">${esc(currentUser)}</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:4px">В приложении с ${fmtDate(u.created)}</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="label">Питомцев</div><div class="value">${state.pets.length}</div></div>
+      <div class="stat-card"><div class="label">Записей о расходах</div><div class="value">${state.expenses.length}</div></div>
+      <div class="stat-card"><div class="label">Просрочено прививок</div><div class="value" style="color:${overdue ? "var(--danger)" : "var(--ok)"}">${overdue}</div></div>
+      <div class="stat-card"><div class="label">Прививки за 2 недели</div><div class="value" style="color:${upcoming14 ? "var(--warn)" : "var(--ok)"}">${upcoming14}</div></div>
+    </div>
+    <button class="btn secondary" id="notif-btn">🔔 Включить уведомления о прививках</button>
+    <button class="btn secondary" id="export-btn" style="margin-top:10px">📤 Экспорт данных (JSON)</button>
+    <button class="btn danger" id="logout-btn" style="margin-top:10px">Выйти из аккаунта</button>
+    <p style="color:var(--muted);font-size:12px;margin-top:16px;text-align:center">
+      Данные хранятся локально на этом устройстве.
+    </p>`;
+
+  $("#logout-btn").onclick = () => {
+    localStorage.removeItem(LS_SESSION);
+    currentUser = null; state = null; activeTab = "pets";
+    renderAuth();
+  };
+  $("#export-btn").onclick = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "dogcare-export.json";
+    a.click();
+  };
+  $("#notif-btn").onclick = async () => {
+    if (!("Notification" in window)) { alert("Браузер не поддерживает уведомления."); return; }
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") { alert("Уведомления включены! Открывайте приложение — оно напомнит о прививках."); checkVaxNotifications(); }
+    else alert("Уведомления не разрешены в настройках браузера.");
+  };
+}
+
+/* Уведомления при открытии приложения */
+function checkVaxNotifications() {
+  if (!("Notification" in window) || Notification.permission !== "granted" || !state) return;
+  state.vaccinations.filter(v => !v.done && petById(v.petId)).forEach(v => {
+    const d = daysUntil(v.due);
+    if (d >= 0 && d <= 7) {
+      const pet = petById(v.petId), vax = vaxById(v.vaxId);
+      new Notification("💉 Скоро прививка: " + pet.name, {
+        body: (vax ? vax.name : "Прививка") + " — " + (d === 0 ? "сегодня!" : "через " + d + " дн. (" + fmtDate(v.due) + ")")
+      });
+    }
+  });
+}
+
+/* ===================== Запуск ===================== */
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+currentUser = localStorage.getItem(LS_SESSION);
+if (currentUser && loadUsers()[currentUser]) {
+  loadState();
+  renderApp();
+  checkVaxNotifications();
+} else {
+  currentUser = null;
+  renderAuth();
+}
+</script>
+</body>
+</html>
