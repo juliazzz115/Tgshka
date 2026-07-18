@@ -1,4 +1,4 @@
-const CACHE = "dogcare-v2";
+const CACHE = "dogee-v3";
 const ASSETS = [
   "./index.html",
   "./manifest.json",
@@ -6,7 +6,8 @@ const ASSETS = [
   "./i18n/base.js",
   "./i18n/lang-west.js",
   "./i18n/lang-east.js",
-  "./i18n/lang-north.js"
+  "./i18n/lang-north.js",
+  "./i18n/country.js"
 ];
 
 self.addEventListener("install", e => {

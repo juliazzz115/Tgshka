@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
 <link rel="manifest" href="manifest.json">
-<title>DogCare</title>
+<title>Dogee</title>
 <style>
   :root {
     --primary: #4f46e5;
@@ -173,6 +173,7 @@
 <script src="i18n/lang-west.js"></script>
 <script src="i18n/lang-east.js"></script>
 <script src="i18n/lang-north.js"></script>
+<script src="i18n/country.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -217,6 +218,74 @@ const EU_VACCINES = [
   { id: "kc",     required: false, tagKey: "t_optional",    firstWeeks: 8,  puppySeries: [8],         boosterMonths: 12 },
   { id: "leish",  required: false, tagKey: "t_south",       firstWeeks: 26, puppySeries: [26],        boosterMonths: 12 }
 ];
+
+/* =====================================================
+   Правила по странам ЕС:
+   rabies: 'dom' — прививка от бешенства обязательна внутри страны,
+           'travel' — обязательна только для поездок по ЕС
+   chip:   'yes' | 'part' — чипирование обязательно / в части регионов
+   leish:  'high' | 'part' — риск лейшманиоза
+   tapeworm: требуется обработка от эхинококка перед въездом
+   liab:   'yes' | 'part' — обязательная страховка ответственности
+   ===================================================== */
+const EU_COUNTRY_RULES = {
+  AT: { rabies: "travel", chip: "yes",  liab: "part" },
+  BE: { rabies: "travel", chip: "yes" },
+  BG: { rabies: "dom",    chip: "yes" },
+  HR: { rabies: "dom",    chip: "yes",  leish: "part" },
+  CY: { rabies: "dom",    chip: "yes",  leish: "high" },
+  CZ: { rabies: "dom",    chip: "yes" },
+  DK: { rabies: "travel", chip: "yes" },
+  EE: { rabies: "dom",    chip: "part" },
+  FI: { rabies: "travel", chip: "yes",  tapeworm: true },
+  FR: { rabies: "travel", chip: "yes",  leish: "part" },
+  DE: { rabies: "travel", chip: "part", liab: "part" },
+  GR: { rabies: "dom",    chip: "yes",  leish: "high" },
+  HU: { rabies: "dom",    chip: "yes" },
+  IE: { rabies: "travel", chip: "yes",  tapeworm: true },
+  IT: { rabies: "travel", chip: "yes",  leish: "high" },
+  LV: { rabies: "dom",    chip: "yes" },
+  LT: { rabies: "dom",    chip: "yes" },
+  LU: { rabies: "travel", chip: "yes" },
+  MT: { rabies: "travel", chip: "yes",  leish: "high", tapeworm: true },
+  NL: { rabies: "travel", chip: "yes" },
+  PL: { rabies: "dom",    chip: "part" },
+  PT: { rabies: "dom",    chip: "yes",  leish: "high" },
+  RO: { rabies: "dom",    chip: "yes" },
+  SK: { rabies: "dom",    chip: "yes" },
+  SI: { rabies: "dom",    chip: "yes" },
+  ES: { rabies: "dom",    chip: "yes",  leish: "high", liab: "yes" },
+  SE: { rabies: "travel", chip: "yes" }
+};
+
+function countryName(code) {
+  try { return new Intl.DisplayNames([lang], { type: "region" }).of(code) || code; }
+  catch (e) { return code; }
+}
+function countryFlag(code) {
+  return String.fromCodePoint(...[...code].map(c => 0x1F1A5 + c.charCodeAt(0)));
+}
+function countryOptions(selected) {
+  return Object.keys(EU_COUNTRY_RULES)
+    .map(c => [c, countryName(c)])
+    .sort((a, b) => a[1].localeCompare(b[1], lang))
+    .map(([c, n]) => `<option value="${c}" ${selected === c ? "selected" : ""}>${countryFlag(c)} ${esc(n)}</option>`)
+    .join("");
+}
+function countryRulesHTML(code) {
+  const r = EU_COUNTRY_RULES[code];
+  if (!r) return "";
+  const lines = [];
+  lines.push("💉 " + t(r.rabies === "dom" ? "c_rabies_dom" : "c_rabies_travel"));
+  lines.push("🪪 " + t(r.chip === "yes" ? "c_chip_yes" : "c_chip_part"));
+  if (r.leish) lines.push("🦟 " + t(r.leish === "high" ? "c_leish_high" : "c_leish_part"));
+  if (r.tapeworm) lines.push("🐛 " + t("c_tapeworm_in"));
+  if (r.liab) lines.push("🛡️ " + t(r.liab === "yes" ? "c_liab_yes" : "c_liab_part"));
+  return `<div class="notice">
+    <b>${countryFlag(code)} ${t("c_rules", { country: esc(countryName(code)) })}</b><br>
+    ${lines.map(l => "• " + l).join("<br>")}
+  </div>`;
+}
 
 const EXPENSE_CATEGORIES = [
   { id: "food",      key: "cat_food",  emoji: "🍖" },
@@ -388,7 +457,7 @@ function renderAuth(mode = "login") {
     <div class="auth-wrap">
       <div class="auth-logo">
         <span class="emoji">🐕</span>
-        <h1>DogCare</h1>
+        <h1>Dogee</h1>
         <p>${t("tagline")}</p>
       </div>
       <div class="lang-row">${langSelect("auth-lang")}</div>
@@ -508,7 +577,7 @@ function renderPets() {
       <div class="pet-avatar">${p.avatar}</div>
       <div class="info">
         <div class="name">${esc(p.name)}</div>
-        <div class="meta">${esc(p.breed || t("no_breed"))} · ${petAge(p.birth) || t("no_age")}${p.weight ? " · " + p.weight + " kg" : ""}</div>
+        <div class="meta">${p.country ? countryFlag(p.country) + " " : ""}${esc(p.breed || t("no_breed"))} · ${petAge(p.birth) || t("no_age")}${p.weight ? " · " + p.weight + " kg" : ""}</div>
         ${p.chip ? `<div class="meta">${t("chip_lbl")} ${esc(p.chip)}</div>` : `<div class="meta"><span class="badge warn">${t("no_chip")}</span></div>`}
       </div>
       <span style="color:var(--muted)">›</span>
@@ -533,6 +602,12 @@ function petForm(pet) {
       <select id="p-avatar">${AVATARS.map(a => `<option ${pet?.avatar === a ? "selected" : ""}>${a}</option>`).join("")}</select>
     </label>
     <label class="field"><span>${t("pet_name")}</span><input id="p-name" value="${esc(pet?.name || "")}" placeholder="Rex"></label>
+    <label class="field"><span>${t("country")}</span>
+      <select id="p-country">
+        <option value="">—</option>
+        ${countryOptions(pet?.country)}
+      </select>
+    </label>
     <label class="field"><span>${t("breed")}</span><input id="p-breed" value="${esc(pet?.breed || "")}"></label>
     <label class="field"><span>${t("sex")}</span>
       <select id="p-sex">
@@ -561,6 +636,7 @@ function petForm(pet) {
       if (!name) { alert(t("name_req")); return; }
       const data = {
         avatar: $("#p-avatar").value, name,
+        country: $("#p-country").value,
         breed: $("#p-breed").value.trim(),
         sex: $("#p-sex").value,
         birth: $("#p-birth").value,
@@ -683,8 +759,9 @@ function expenseForm(exp) {
 function generateEUSchedule(pet) {
   const birth = pet.birth;
   if (!birth) return;
+  const leishRisk = pet.country && EU_COUNTRY_RULES[pet.country]?.leish === "high";
   EU_VACCINES.forEach(v => {
-    if (!v.required && v.id !== "pi") return;
+    if (!v.required && v.id !== "pi" && !(v.id === "leish" && leishRisk)) return;
     v.puppySeries.forEach(weeks => {
       let due = addDays(birth, weeks * 7);
       if (daysUntil(due) < 0) due = todayISO();
@@ -722,7 +799,10 @@ function renderVax() {
     </div>`;
   };
 
+  const petCountries = [...new Set(state.pets.map(p => p.country).filter(c => c && EU_COUNTRY_RULES[c]))];
+
   c.innerHTML = `
+    ${petCountries.map(countryRulesHTML).join("")}
     <div class="notice">
       🇪🇺 <b>${t("travel_title")}</b><br>
       ${[1,2,3,4,5,6].map(i => "• " + t("r" + i)).join("<br>")}
